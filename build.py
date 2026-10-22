@@ -13,7 +13,7 @@ DOCS = ROOT / "docs"
 CHECKS = ROOT / "checks"
 # Assumed GitHub Pages address; change here if the repository lives elsewhere.
 BASE = "https://cart231-ffly-b.github.io/cc-win-symptoms/"
-TRAPS_REPO = "https://github.com/cart231-ffly-b/cc-win-traps"
+TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 
 LINKS = {
     "ja": {
