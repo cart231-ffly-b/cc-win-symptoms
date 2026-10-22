@@ -20,11 +20,15 @@
 <h2>Check it in 30 seconds</h2>
 <p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine.</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 [IO.File]::WriteAllText(&quot;$d\say.py&quot;, &#x27;import sys; sys.stdout.buffer.write((chr(0x65e5)+chr(0x672c)).encode(&quot;utf-8&quot;))&#x27;)
 $s = python &quot;$d\say.py&quot;
 $want = [string][char]0x65E5 + [char]0x672C
 &quot;read with code page $([Console]::OutputEncoding.CodePage): &quot; + (($s.ToCharArray() | ForEach-Object { &#x27;{0:X4}&#x27; -f [int]$_ }) -join &#x27; &#x27;) + &#x27;  (want 65E5 672C)&#x27;
-if ($s -ne $want) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+if ($s -ne $want) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>Why it happens</h2>
 <p>PowerShell decodes a native program&#x27;s output with [Console]::OutputEncoding, which defaults to the OEM code page (437, 850, 932 ...). Output from a program that writes UTF-8 is decoded incorrectly.</p>
 <h2>Fix</h2>

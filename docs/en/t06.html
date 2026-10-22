@@ -20,18 +20,20 @@
 <h2>Check it in 30 seconds</h2>
 <p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine.</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 [IO.File]::WriteAllText(&quot;$d\dash.py&quot;, &#x27;print(&quot;a&quot; + chr(0x2014) + chr(0x2713) + &quot;b&quot;)&#x27;)
 python &quot;$d\dash.py&quot; &gt; &quot;$d\out.txt&quot; 2&gt; &quot;$d\err.txt&quot;; $e = $LASTEXITCODE
-&quot;exit=$e&quot;
-if ($e -ne 0) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+$err = [IO.File]::ReadAllText(&quot;$d\err.txt&quot;)
+&quot;exit=$e, UnicodeEncodeError=$($err -match &#x27;UnicodeEncodeError&#x27;)&quot;
+if ($e -ne 0 -and $err -match &#x27;UnicodeEncodeError&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>Why it happens</h2>
-<p>On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it.</p>
+<p>On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it. Python 3.15 (released 2026-10-09) made UTF-8 the default (PEP 686), so this is not expected on 3.15 or later (the author tested 3.13.7, not 3.15; the check prints your Python version first).</p>
 <h2>Fix</h2>
 <p>Set PYTHONIOENCODING=utf-8 on the sending side. In the app itself, call sys.stdout.reconfigure(encoding=&#x27;utf-8&#x27;) when stdout is not a terminal.</p>
-<pre><code>$env:PYTHONIOENCODING = &#x27;utf-8&#x27;
-# or in Python:
-import sys
-if not sys.stdout.isatty(): sys.stdout.reconfigure(encoding=&#x27;utf-8&#x27;)</code></pre>
+<pre><code>$env:PYTHONIOENCODING = &#x27;utf-8&#x27;</code></pre>
 <h2>On the author&#x27;s machine</h2>
 <p class="result">UnicodeEncodeError, exit 1</p>
 <p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>

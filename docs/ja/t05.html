@@ -20,11 +20,15 @@
 <h2>30秒で確かめる</h2>
 <p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 [IO.File]::WriteAllText(&quot;$d\say.py&quot;, &#x27;import sys; sys.stdout.buffer.write((chr(0x65e5)+chr(0x672c)).encode(&quot;utf-8&quot;))&#x27;)
 $s = python &quot;$d\say.py&quot;
 $want = [string][char]0x65E5 + [char]0x672C
 &quot;read with code page $([Console]::OutputEncoding.CodePage): &quot; + (($s.ToCharArray() | ForEach-Object { &#x27;{0:X4}&#x27; -f [int]$_ }) -join &#x27; &#x27;) + &#x27;  (want 65E5 672C)&#x27;
-if ($s -ne $want) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+if ($s -ne $want) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>なぜ起きるか</h2>
 <p>PowerShell はネイティブのプログラムの出力を [Console]::OutputEncoding（日本語の Windows では既定 932）で読む。相手が UTF-8 で書いていると、読み違える。</p>
 <h2>直し方</h2>

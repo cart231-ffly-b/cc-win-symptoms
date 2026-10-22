@@ -20,15 +20,15 @@
 <h2>30秒で確かめる</h2>
 <p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。 claude を1回呼ぶので、1分ほどかかります。</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
-[IO.File]::WriteAllText(&quot;$d\deny.ps1&quot;, &#x27;[Console]::Error.WriteLine(&quot;denied&quot;); exit 2&#x27;)
+[IO.File]::WriteAllText(&quot;$d\deny.ps1&quot;, &#x27;[IO.File]::WriteAllText(&#x27;&#x27;MARK&#x27;&#x27;, &#x27;&#x27;x&#x27;&#x27;); [Console]::Error.WriteLine(&quot;denied&quot;); exit 2&#x27;.Replace(&#x27;MARK&#x27;, &quot;$d\called.txt&quot;))
 $hook = &#x27;powershell -NoProfile -ExecutionPolicy Bypass -Command \&quot;&amp; &#x27;&#x27;&#x27; + ($d -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;/deny.ps1&#x27;&#x27;\&quot;&#x27;
 [IO.File]::WriteAllText(&quot;$d\s.json&quot;, &#x27;{&quot;hooks&quot;:{&quot;PreToolUse&quot;:[{&quot;matcher&quot;:&quot;Write|Edit&quot;,&quot;hooks&quot;:[{&quot;type&quot;:&quot;command&quot;,&quot;command&quot;:&quot;HOOK&quot;}]}]}}&#x27;.Replace(&#x27;HOOK&#x27;, $hook))
 Push-Location $d
 &#x27;Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.&#x27; | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
 Pop-Location
-$w = Test-Path &quot;$d\written.txt&quot;
-&quot;deny hook called through -Command: written=$w&quot;
-if ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+$w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&quot;
+&quot;deny hook called through -Command: hook called=$c, written=$w&quot;
+if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>なぜ起きるか</h2>
 <p>フックの拒否は終了コード 2。powershell -Command &quot;&amp; &#x27;deny.ps1&#x27;&quot; で呼ぶと、2 が 1 に化ける（T01 と同じ）。1 は「止めないエラー」なので、書き込みは進む。</p>
 <h2>直し方</h2>

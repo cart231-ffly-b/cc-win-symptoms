@@ -30,9 +30,10 @@ if ($e -ne 0 -or $o -notmatch &#x27;START&#x27; -or $extra.Count -gt 0) { &#x27;
 <p>本当の原因は改行。LF だけの .cmd を、cmd.exe がコードページ 932 で読むと、行の区切りを誤ってコメントの途中からを1行として実行する。コードページを 65001（UTF-8）にした端末や Claude Code の Bash ツールの中では起きないので、そこで試すと気づけない。</p>
 <h2>直し方</h2>
 <p>.cmd / .bat は改行を CRLF にして保存する。git なら .gitattributes に *.cmd text eol=crlf。</p>
-<pre><code>$t = [IO.File]::ReadAllText($path, [Text.Encoding]::GetEncoding(932))
+<pre><code>$enc = [Text.Encoding]::GetEncoding(28591)   # 1文字=1バイトで読み書きし、中身のバイトを変えない
+$t = [IO.File]::ReadAllText($path, $enc)
 $t = ($t -replace &quot;`r`n&quot;, &quot;`n&quot;) -replace &quot;`n&quot;, &quot;`r`n&quot;
-[IO.File]::WriteAllText($path, $t, [Text.Encoding]::GetEncoding(932))</code></pre>
+[IO.File]::WriteAllText($path, $t, $enc)</code></pre>
 <h2>作者の PC での結果</h2>
 <p class="result">cp932 で壊れ、cp65001 では通った</p>
 <p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>

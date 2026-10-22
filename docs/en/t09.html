@@ -30,7 +30,7 @@ if ($e -ne 0 -or $o -notmatch &#x27;START&#x27; -or $extra.Count -gt 0) { &#x27;
 <p>The real cause is the line endings. cmd.exe can misread line boundaries in an LF-only batch file. On the author&#x27;s machine it broke under code page 932 (Japanese), not under 65001, 437 or 1252, so on English Windows this check may say NOT REPRODUCED.</p>
 <h2>Fix</h2>
 <p>Save .cmd / .bat files with CRLF line endings. In git, add *.cmd text eol=crlf to .gitattributes.</p>
-<pre><code>$enc = [Text.Encoding]::Default   # this PC&#x27;s ANSI code page
+<pre><code>$enc = [Text.Encoding]::GetEncoding(28591)   # one byte per char: the file&#x27;s bytes stay as they are
 $t = [IO.File]::ReadAllText($path, $enc)
 $t = ($t -replace &quot;`r`n&quot;, &quot;`n&quot;) -replace &quot;`n&quot;, &quot;`r`n&quot;
 [IO.File]::WriteAllText($path, $t, $enc)</code></pre>

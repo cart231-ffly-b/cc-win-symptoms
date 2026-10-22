@@ -20,11 +20,15 @@
 <h2>30秒で確かめる</h2>
 <p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 [IO.File]::WriteAllText(&quot;$d\hex.py&quot;, &#x27;import sys; print(sys.stdin.buffer.read().strip().hex())&#x27;)
 $s = [string][char]0x65E5 + [char]0x672C
 $h = $s | python &quot;$d\hex.py&quot;
 &quot;bytes=$h  (UTF-8 would be e697a5e69cac)&quot;
-if ($h -match &#x27;^(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+if ($h -match &#x27;^(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>なぜ起きるか</h2>
 <p>Windows PowerShell 5.1 は、ネイティブのプログラムへパイプで渡す文字を $OutputEncoding で符号化する。既定は ASCII なので、日本語は ? になる。受け取る側の [Console]::OutputEncoding とは別の設定。</p>
 <h2>直し方</h2>

@@ -20,15 +20,15 @@
 <h2>Check it in 30 seconds</h2>
 <p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
-[IO.File]::WriteAllText(&quot;$d\slow-deny.ps1&quot;, &#x27;Start-Sleep -Seconds 15; [Console]::Error.WriteLine(&quot;denied&quot;); exit 2&#x27;)
+[IO.File]::WriteAllText(&quot;$d\slow-deny.ps1&quot;, &#x27;[IO.File]::WriteAllText(&#x27;&#x27;MARK&#x27;&#x27;, &#x27;&#x27;x&#x27;&#x27;); Start-Sleep -Seconds 15; [Console]::Error.WriteLine(&quot;denied&quot;); exit 2&#x27;.Replace(&#x27;MARK&#x27;, &quot;$d\called.txt&quot;))
 $hook = &#x27;powershell -NoProfile -ExecutionPolicy Bypass -File \&quot;&#x27; + ($d -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;/slow-deny.ps1\&quot;&#x27;
 [IO.File]::WriteAllText(&quot;$d\s.json&quot;, &#x27;{&quot;hooks&quot;:{&quot;PreToolUse&quot;:[{&quot;matcher&quot;:&quot;Write|Edit&quot;,&quot;hooks&quot;:[{&quot;type&quot;:&quot;command&quot;,&quot;command&quot;:&quot;HOOK&quot;,&quot;timeout&quot;:3}]}]}}&#x27;.Replace(&#x27;HOOK&#x27;, $hook))
 Push-Location $d
 &#x27;Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.&#x27; | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
 Pop-Location
-$w = Test-Path &quot;$d\written.txt&quot;
-&quot;hook denies after 15 s, timeout 3 s: written=$w&quot;
-if ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+$w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&quot;
+&quot;hook denies after 15 s, timeout 3 s: hook called=$c, written=$w&quot;
+if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>Why it happens</h2>
 <p>By default, when a hook times out, crashes or cannot start, Claude Code lets the tool call continue. The official hooks reference says not to count on a stalled hook as a gate.</p>
 <h2>Fix</h2>

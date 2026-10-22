@@ -20,6 +20,9 @@
 <h2>30秒で確かめる</h2>
 <p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。 25秒ほどかかります。</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 $ad = Join-Path $env:LOCALAPPDATA (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $ad -Force | Out-Null
 $log = Join-Path $ad &#x27;w.log&#x27;; [IO.File]::WriteAllText($log, &#x27;&#x27;)
 [IO.File]::WriteAllText(&quot;$d\writer.py&quot;, &quot;import sys,time`nf=open(sys.argv[1],&#x27;a&#x27;)`nf.write(&#x27;x&#x27;*5000000)`nf.flush()`ntime.sleep(20)`nf.close()`n&quot;)
@@ -29,7 +32,8 @@ $listed = (Get-ChildItem -LiteralPath $ad -Filter &#x27;w.log&#x27;).Length
 $fs = [IO.File]::Open($log, &#x27;Open&#x27;, &#x27;Read&#x27;, &#x27;ReadWrite&#x27;); $real = $fs.Length; $fs.Close()
 $p.WaitForExit(); Remove-Item -LiteralPath $ad -Recurse -Force
 &quot;listed=$listed real=$real&quot;
-if ($listed -ne $real) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+if ($listed -ne $real) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>なぜ起きるか</h2>
 <p>Windows は、開いたまま書き続けているファイルの一覧上のサイズを、すぐには更新しないことがある（作者の PC では AppData の下で再現）。</p>
 <h2>直し方</h2>

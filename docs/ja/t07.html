@@ -20,15 +20,20 @@
 <h2>30秒で確かめる</h2>
 <p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。</p>
 <pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
 [IO.File]::WriteAllText(&quot;$d\dash.py&quot;, &#x27;print(&quot;a&quot; + chr(0x2014) + chr(0x2713) + &quot;b&quot;)&#x27;)
 $old = $env:PYTHONIOENCODING; $env:PYTHONIOENCODING = &#x27;utf-8&#x27;
 python -I &quot;$d\dash.py&quot; &gt; &quot;$d\o1.txt&quot; 2&gt; &quot;$d\e1.txt&quot;; $a = $LASTEXITCODE
 python &quot;$d\dash.py&quot; &gt; &quot;$d\o2.txt&quot; 2&gt; &quot;$d\e2.txt&quot;; $b = $LASTEXITCODE
 $env:PYTHONIOENCODING = $old
+$err = [IO.File]::ReadAllText(&quot;$d\e1.txt&quot;)
 &quot;with -I exit=$a, without -I exit=$b&quot;
-if ($a -ne 0 -and $b -eq 0) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+if ($a -ne 0 -and $err -match &#x27;UnicodeEncodeError&#x27; -and $b -eq 0) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
 <h2>なぜ起きるか</h2>
-<p>-I（隔離モード）は PYTHON で始まる環境変数をすべて無視する。安全のために付けた -I が、文字コードの設定まで消す。</p>
+<p>-I（隔離モード）は PYTHON で始まる環境変数をすべて無視する。安全のために付けた -I が、文字コードの設定まで消す。Python 3.15 以降は UTF-8 が既定なので、そもそも落ちない見込み（未確認）。</p>
 <h2>直し方</h2>
 <p>-I を外すか、スクリプトの中で sys.stdout.reconfigure(encoding=&#x27;utf-8&#x27;) を呼ぶ。</p>
 <pre><code>import sys

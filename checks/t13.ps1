@@ -1,4 +1,7 @@
 $d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
 $ad = Join-Path $env:LOCALAPPDATA ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $ad -Force | Out-Null
 $log = Join-Path $ad 'w.log'; [IO.File]::WriteAllText($log, '')
 [IO.File]::WriteAllText("$d\writer.py", "import sys,time`nf=open(sys.argv[1],'a')`nf.write('x'*5000000)`nf.flush()`ntime.sleep(20)`nf.close()`n")
@@ -9,3 +12,4 @@ $fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite'); $real = $fs.Length; $f
 $p.WaitForExit(); Remove-Item -LiteralPath $ad -Recurse -Force
 "listed=$listed real=$real"
 if ($listed -ne $real) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}

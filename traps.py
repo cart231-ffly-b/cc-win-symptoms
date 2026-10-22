@@ -12,6 +12,12 @@ HEAD = r"""$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHm
 
 YES = r"""{ 'REPRODUCED' } else { 'NOT REPRODUCED' }"""
 
+PY_GUARD = r"""$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+"""
+PY_IDS = ("t04", "t05", "t06", "t07", "t13")
+
 TRAPS = [
     {
         "id": "t01",
@@ -145,24 +151,25 @@ if ($s -ne $want) """ + YES,
         "id": "t06",
         "check": HEAD + r"""[IO.File]::WriteAllText("$d\dash.py", 'print("a" + chr(0x2014) + chr(0x2713) + "b")')
 python "$d\dash.py" > "$d\out.txt" 2> "$d\err.txt"; $e = $LASTEXITCODE
-"exit=$e"
-if ($e -ne 0) """ + YES,
+$err = [IO.File]::ReadAllText("$d\err.txt")
+"exit=$e, UnicodeEncodeError=$($err -match 'UnicodeEncodeError')"
+if ($e -ne 0 -and $err -match 'UnicodeEncodeError') """ + YES,
         "ja": {
             "title": "手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる",
             "search": ["UnicodeEncodeError cp932", "タスクスケジューラ python 動かない", "python リダイレクト エラー", "'cp932' codec can't encode character"],
             "symptom": "画面で動かすと通るスクリプトが、> ファイル へのリダイレクトやタスクスケジューラ経由のときだけ UnicodeEncodeError で落ちる。— や ✓ のような記号を print しただけで起きる。",
-            "why": "Windows の Python は、出力先が画面なら Unicode をそのまま書けるが、ファイルやパイプだと既定のコードページ（日本語なら cp932）で符号化する。その表に無い文字で落ちる。",
+            "why": "Windows の Python は、出力先が画面なら Unicode をそのまま書けるが、ファイルやパイプだと既定のコードページ（日本語なら cp932）で符号化する。その表に無い文字で落ちる。なお Python 3.15（2026年10月9日公開）は UTF-8 を既定にしたので（PEP 686）、3.15 以降では起きない見込み（作者の PC は 3.13.7 で、3.15 では試していない。確かめるコードは最初に Python の版を出す）。",
             "fix": "送る側で PYTHONIOENCODING=utf-8 を設定する。アプリで直すなら、画面でないときだけ sys.stdout.reconfigure(encoding='utf-8')。",
-            "fixcode": "$env:PYTHONIOENCODING = 'utf-8'\n# or in Python:\nimport sys\nif not sys.stdout.isatty(): sys.stdout.reconfigure(encoding='utf-8')",
+            "fixcode": "$env:PYTHONIOENCODING = 'utf-8'",
             "result": "UnicodeEncodeError、終了コード 1",
         },
         "en": {
             "title": "Python works when run by hand but crashes under Task Scheduler or redirection",
             "search": ["UnicodeEncodeError charmap codec can't encode character", "python works manually fails in task scheduler", "python redirect output unicode error windows"],
             "symptom": "A script that runs fine in a terminal crashes with UnicodeEncodeError when its output is redirected to a file or it runs from Task Scheduler. Printing a check mark (U+2713) is enough.",
-            "why": "On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it.",
+            "why": "On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it. Python 3.15 (released 2026-10-09) made UTF-8 the default (PEP 686), so this is not expected on 3.15 or later (the author tested 3.13.7, not 3.15; the check prints your Python version first).",
             "fix": "Set PYTHONIOENCODING=utf-8 on the sending side. In the app itself, call sys.stdout.reconfigure(encoding='utf-8') when stdout is not a terminal.",
-            "fixcode": "$env:PYTHONIOENCODING = 'utf-8'\n# or in Python:\nimport sys\nif not sys.stdout.isatty(): sys.stdout.reconfigure(encoding='utf-8')",
+            "fixcode": "$env:PYTHONIOENCODING = 'utf-8'",
             "result": "UnicodeEncodeError, exit 1",
         },
     },
@@ -173,13 +180,14 @@ $old = $env:PYTHONIOENCODING; $env:PYTHONIOENCODING = 'utf-8'
 python -I "$d\dash.py" > "$d\o1.txt" 2> "$d\e1.txt"; $a = $LASTEXITCODE
 python "$d\dash.py" > "$d\o2.txt" 2> "$d\e2.txt"; $b = $LASTEXITCODE
 $env:PYTHONIOENCODING = $old
+$err = [IO.File]::ReadAllText("$d\e1.txt")
 "with -I exit=$a, without -I exit=$b"
-if ($a -ne 0 -and $b -eq 0) """ + YES,
+if ($a -ne 0 -and $err -match 'UnicodeEncodeError' -and $b -eq 0) """ + YES,
         "ja": {
             "title": "PYTHONIOENCODING を設定したのに、python -I だと効かない",
             "search": ["PYTHONIOENCODING 効かない", "python -I 環境変数 無視", "python -I UnicodeEncodeError"],
             "symptom": "T06 の対策で PYTHONIOENCODING=utf-8 を入れたのに、python -I で呼んでいる所だけ同じエラーで落ちる。",
-            "why": "-I（隔離モード）は PYTHON で始まる環境変数をすべて無視する。安全のために付けた -I が、文字コードの設定まで消す。",
+            "why": "-I（隔離モード）は PYTHON で始まる環境変数をすべて無視する。安全のために付けた -I が、文字コードの設定まで消す。Python 3.15 以降は UTF-8 が既定なので、そもそも落ちない見込み（未確認）。",
             "fix": "-I を外すか、スクリプトの中で sys.stdout.reconfigure(encoding='utf-8') を呼ぶ。",
             "fixcode": "import sys\nsys.stdout.reconfigure(encoding='utf-8')",
             "result": "-I で終了コード 1、外すと 0",
@@ -188,7 +196,7 @@ if ($a -ne 0 -and $b -eq 0) """ + YES,
             "title": "PYTHONIOENCODING is set, but python -I ignores it",
             "search": ["PYTHONIOENCODING not working", "python -I ignores environment variables", "python -I UnicodeEncodeError"],
             "symptom": "You set PYTHONIOENCODING=utf-8 to fix T06, but the places that call python -I still crash the same way.",
-            "why": "-I (isolated mode) ignores every PYTHON* environment variable. The flag you added for safety also drops the encoding setting.",
+            "why": "-I (isolated mode) ignores every PYTHON* environment variable. The flag you added for safety also drops the encoding setting. On Python 3.15 or later UTF-8 is the default, so this is not expected there (not tested).",
             "fix": "Drop -I, or call sys.stdout.reconfigure(encoding='utf-8') inside the script.",
             "fixcode": "import sys\nsys.stdout.reconfigure(encoding='utf-8')",
             "result": "exit 1 with -I, 0 without",
@@ -234,7 +242,7 @@ if ($e -ne 0 -or $o -notmatch 'START' -or $extra.Count -gt 0) """ + YES,
             "symptom": "rem で書いた日本語のコメントの一部が「内部コマンドまたは外部コマンド…として認識されていません」になる。途中の行が飛ばされることもある。文字コードを直しても直らない。",
             "why": "本当の原因は改行。LF だけの .cmd を、cmd.exe がコードページ 932 で読むと、行の区切りを誤ってコメントの途中からを1行として実行する。コードページを 65001（UTF-8）にした端末や Claude Code の Bash ツールの中では起きないので、そこで試すと気づけない。",
             "fix": ".cmd / .bat は改行を CRLF にして保存する。git なら .gitattributes に *.cmd text eol=crlf。",
-            "fixcode": "$t = [IO.File]::ReadAllText($path, [Text.Encoding]::GetEncoding(932))\n$t = ($t -replace \"`r`n\", \"`n\") -replace \"`n\", \"`r`n\"\n[IO.File]::WriteAllText($path, $t, [Text.Encoding]::GetEncoding(932))",
+            "fixcode": "$enc = [Text.Encoding]::GetEncoding(28591)   # 1文字=1バイトで読み書きし、中身のバイトを変えない\n$t = [IO.File]::ReadAllText($path, $enc)\n$t = ($t -replace \"`r`n\", \"`n\") -replace \"`n\", \"`r`n\"\n[IO.File]::WriteAllText($path, $t, $enc)",
             "result": "cp932 で壊れ、cp65001 では通った",
         },
         "en": {
@@ -243,7 +251,7 @@ if ($e -ne 0 -or $o -notmatch 'START' -or $extra.Count -gt 0) """ + YES,
             "symptom": "Parts of rem comments come back as \"is not recognized as an internal or external command\", or lines are skipped. Changing the encoding does not fix it.",
             "why": "The real cause is the line endings. cmd.exe can misread line boundaries in an LF-only batch file. On the author's machine it broke under code page 932 (Japanese), not under 65001, 437 or 1252, so on English Windows this check may say NOT REPRODUCED.",
             "fix": "Save .cmd / .bat files with CRLF line endings. In git, add *.cmd text eol=crlf to .gitattributes.",
-            "fixcode": "$enc = [Text.Encoding]::Default   # this PC's ANSI code page\n$t = [IO.File]::ReadAllText($path, $enc)\n$t = ($t -replace \"`r`n\", \"`n\") -replace \"`n\", \"`r`n\"\n[IO.File]::WriteAllText($path, $t, $enc)",
+            "fixcode": "$enc = [Text.Encoding]::GetEncoding(28591)   # one byte per char: the file's bytes stay as they are\n$t = [IO.File]::ReadAllText($path, $enc)\n$t = ($t -replace \"`r`n\", \"`n\") -replace \"`n\", \"`r`n\"\n[IO.File]::WriteAllText($path, $t, $enc)",
             "result": "broke under cp932, ran fine under cp65001",
         },
     },
@@ -381,15 +389,15 @@ if ($o -match 'Input must be provided') """ + YES,
     {
         "id": "h01",
         "claude": True,
-        "check": HEAD + r"""[IO.File]::WriteAllText("$d\slow-deny.ps1", 'Start-Sleep -Seconds 15; [Console]::Error.WriteLine("denied"); exit 2')
+        "check": HEAD + r"""[IO.File]::WriteAllText("$d\slow-deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); Start-Sleep -Seconds 15; [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
 $hook = 'powershell -NoProfile -ExecutionPolicy Bypass -File \"' + ($d -replace '\\', '/') + '/slow-deny.ps1\"'
 [IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK","timeout":3}]}]}}'.Replace('HOOK', $hook))
 Push-Location $d
 'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
 Pop-Location
-$w = Test-Path "$d\written.txt"
-"hook denies after 15 s, timeout 3 s: written=$w"
-if ($w) """ + YES,
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"hook denies after 15 s, timeout 3 s: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
         "ja": {
             "title": "Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す",
             "search": ["Claude Code フック 効かない", "PreToolUse フック タイムアウト", "Claude Code hook 素通り", "onFailure block"],
@@ -412,15 +420,15 @@ if ($w) """ + YES,
     {
         "id": "h02",
         "claude": True,
-        "check": HEAD + r"""[IO.File]::WriteAllText("$d\deny.ps1", '[Console]::Error.WriteLine("denied"); exit 2')
+        "check": HEAD + r"""[IO.File]::WriteAllText("$d\deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
 $hook = 'powershell -NoProfile -ExecutionPolicy Bypass -Command \"& ''' + ($d -replace '\\', '/') + '/deny.ps1''\"'
 [IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
 Push-Location $d
 'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
 Pop-Location
-$w = Test-Path "$d\written.txt"
-"deny hook called through -Command: written=$w"
-if ($w) """ + YES,
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"deny hook called through -Command: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
         "ja": {
             "title": "PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする",
             "search": ["Claude Code フック PowerShell", "PreToolUse exit 2 効かない", "Claude Code hook powershell -Command", "フック 拒否 されない"],
@@ -441,3 +449,9 @@ if ($w) """ + YES,
         },
     },
 ]
+
+# wrap every check that needs python in the guard (HEAD stays outside)
+for _tr in TRAPS:
+    if _tr["id"] in PY_IDS:
+        _body = _tr["check"][len(HEAD):]
+        _tr["check"] = HEAD + PY_GUARD + _body + "\n}"

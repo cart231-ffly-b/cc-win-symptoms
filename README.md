@@ -23,6 +23,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1 -SkipClaude -Ski
 
 - `check-paste.ps1`: 同じコードを `powershell -Command -` に1行ずつ流す（読者が画面に貼るのに近い形）。2026-10-22 に15件 REPRODUCED（t13 は外した）。直した環境（$OutputEncoding・[Console]::OutputEncoding・PYTHONIOENCODING を UTF-8、単一引用符）では t04/t05/t06/t12 が NOT REPRODUCED に変わることも確認
 
+### 判定の3つ目「CANNOT CHECK」（2026-10-22、相談役の指摘で足した）
+
+- python を使う t04/t05/t06/t07/t13 は、最初に python の版を出す。python が無い・ストアの偽物（何も出さず 9009）なら `CANNOT CHECK`。以前は偽物でも t05/t06 が REPRODUCED と誤って出た。偽物と同じ動きの `python.cmd`（`exit /b 9009`）と、python の無い PATH の両方で `CANNOT CHECK` を確かめた
+- t06/t07 は終了コードだけでなく `UnicodeEncodeError` の文字で決める
+- h01/h02 はフックが最初に印のファイルを作り、「印がある かつ 書き込まれた」で REPRODUCED。`disableAllHooks` を足した設定で `CANNOT CHECK`（hook called=False）になることを確かめた
+- **Python 3.15（2026-10-09 公開、python.org のリリースページで確認）は UTF-8 が既定（PEP 686）。** 3.15 では t06/t07 は起きない見込み。手元は 3.13.7 なので、代わりに `-X utf8` で流して t06/t07 の形が落ちない（exit 0）ことだけ確かめた
+- **英語版の Windows（437/1252）の実機では流していない。** check.ps1 が切り替えるのは OEM のコードページだけで、ANSI（t06・t08 に効く）は変えられない
+
 ## 直すとき
 
 `traps.py` を直して `python build.py`。`docs/` と `checks/` は生成物なので手で直さない（ただし GitHub Pages が `docs/` を配るので、生成後の `docs/` はコミットする）。確かめるコードは ASCII だけ（build.py が止める）。
@@ -33,4 +41,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1 -SkipClaude -Ski
 2. Settings → Pages → Branch `main`、フォルダ `/docs`
 3. URL は `https://cart231-ffly-b.github.io/cc-win-symptoms/` を仮定している（`build.py` の `BASE`。違ったら直して build）
 
-**公開はリンク先の記事が出た後（11-05 以降）。** ページから note の 14か所（10-29）・キット（10-31）・旗艦2（11-05）と、GitHub の cc-win-traps（未公開）に張っている。
+**公開はリンク先の記事が出た後（11-05 以降）。** ページから note の 14か所（10-29）・キット（10-31）・旗艦2（11-05）と、GitHub の cc-win-traps（未公開）に張っている。**英語のページの「関連」は cc-win-traps だけなので、cc-win-traps を先に公開する。** 英語のページのキットは Payhip に張っている → **Payhip の支払いが通るようになってから**（2026-10-22 時点で Stripe が本番の支払いを受けられない）。
