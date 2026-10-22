@@ -30,7 +30,7 @@ $w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&qu
 &quot;deny hook called through -Command: hook called=$c, written=$w&quot;
 if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>なぜ起きるか</h2>
-<p>フックの拒否は終了コード 2。powershell -Command &quot;&amp; &#x27;deny.ps1&#x27;&quot; で呼ぶと、2 が 1 に化ける（T01 と同じ）。1 は「止めないエラー」なので、書き込みは進む。</p>
+<p>フックの拒否は終了コード 2。powershell -Command &quot;&amp; &#x27;deny.ps1&#x27;&quot; で呼ぶと、2 が 1 に化ける（T01 と同じ）。1 は「止めないエラー」なので、書き込みは進む。Git Bash が入っていない Windows では、失敗が止める側に倒れることがあり、そこではこの穴は出ない見込み（公式の説明書。作者の PC には Git Bash が入っている）。</p>
 <h2>直し方</h2>
 <p>PowerShell のフックは -File で呼ぶ。念のため &quot;onFailure&quot;: &quot;block&quot; も付ける（-Command のままでも、これで止まった）。</p>
 <pre><code>&quot;command&quot;: &quot;powershell -NoProfile -ExecutionPolicy Bypass -File C:/hooks/deny.ps1&quot;,

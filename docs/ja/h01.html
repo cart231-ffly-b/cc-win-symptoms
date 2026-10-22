@@ -30,7 +30,7 @@ $w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&qu
 &quot;hook denies after 15 s, timeout 3 s: hook called=$c, written=$w&quot;
 if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>なぜ起きるか</h2>
-<p>既定では、フックが時間切れ・異常終了・起動失敗になると、Claude Code はツールの呼び出しを止めずに先へ進める。公式の hooks リファレンスにも「止まったフックを関所として当てにしない」とある。</p>
+<p>既定では、フックが時間切れ・異常終了・起動失敗になると、Claude Code はツールの呼び出しを止めずに先へ進める。公式の hooks リファレンスにも「止まったフックを関所として当てにしない」とある。ただし Git Bash が入っていない Windows では、onFailure を付けていないフックでも、失敗や時間切れで止まる側に倒れることがある（同じ説明書）。作者の PC には Git Bash が入っている。</p>
 <h2>直し方</h2>
 <p>関所のフックに &quot;onFailure&quot;: &quot;block&quot; を付ける（Claude Code 2.1.295 以降）。付けたら、フックが動かない PC では書き込みが全部止まるので、1回試す。時間制限は短くしすぎない。</p>
 <pre><code>{&quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;...&quot;, &quot;timeout&quot;: 60, &quot;onFailure&quot;: &quot;block&quot;}</code></pre>

@@ -30,7 +30,7 @@ $w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&qu
 &quot;deny hook called through -Command: hook called=$c, written=$w&quot;
 if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>Why it happens</h2>
-<p>A hook denies with exit code 2. Called as powershell -Command &quot;&amp; &#x27;deny.ps1&#x27;&quot;, the 2 becomes 1 (same as T01), and 1 is a non-blocking error, so the write proceeds.</p>
+<p>A hook denies with exit code 2. Called as powershell -Command &quot;&amp; &#x27;deny.ps1&#x27;&quot;, the 2 becomes 1 (same as T01), and 1 is a non-blocking error, so the write proceeds. On Windows without Git Bash a failure can block instead, so this is not expected there (official reference; the author&#x27;s machine has Git Bash).</p>
 <h2>Fix</h2>
 <p>Call PowerShell hooks with -File. Also add &quot;onFailure&quot;: &quot;block&quot; (it blocked even with -Command).</p>
 <pre><code>&quot;command&quot;: &quot;powershell -NoProfile -ExecutionPolicy Bypass -File C:/hooks/deny.ps1&quot;,

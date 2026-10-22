@@ -30,7 +30,7 @@ $w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&qu
 &quot;hook denies after 15 s, timeout 3 s: hook called=$c, written=$w&quot;
 if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>Why it happens</h2>
-<p>By default, when a hook times out, crashes or cannot start, Claude Code lets the tool call continue. The official hooks reference says not to count on a stalled hook as a gate.</p>
+<p>By default, when a hook times out, crashes or cannot start, Claude Code lets the tool call continue. The official hooks reference says not to count on a stalled hook as a gate. On Windows without Git Bash, though, a failed or timed-out hook without onFailure can block instead (same reference); the author&#x27;s machine has Git Bash.</p>
 <h2>Fix</h2>
 <p>Add &quot;onFailure&quot;: &quot;block&quot; to gate hooks (Claude Code 2.1.295 or later). Then a hook that cannot run blocks every write, so test it once. Do not make the timeout too short.</p>
 <pre><code>{&quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;...&quot;, &quot;timeout&quot;: 60, &quot;onFailure&quot;: &quot;block&quot;}</code></pre>
