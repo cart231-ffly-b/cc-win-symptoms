@@ -13,7 +13,7 @@ $bad = 0
 $rows = @()
 foreach ($f in (Get-ChildItem -LiteralPath (Join-Path $here 'checks') -Filter '*.ps1' | Sort-Object Name)) {
     $id = $f.BaseName
-    if ($SkipClaude -and (@('t14', 'h01', 'h02') -contains $id)) { continue }
+    if ($SkipClaude -and (@('t14', 'h01', 'h02', 'h03') -contains $id)) { continue }
     if ($SkipSlow -and $id -eq 't13') { continue }
     # a blank line after the snippet ends any multi-line block, as pressing Enter would
     $src = [IO.File]::ReadAllText($f.FullName) + "`r`n`r`n"

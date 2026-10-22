@@ -18,8 +18,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1            # 全
 powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1 -SkipClaude -SkipSlow
 ```
 
-- `check_links.py`: ページ数（35）、相対リンク切れ、title と description、ハングルの混入
-- 各ページの「30秒で確かめる」のコードを、読者と同じく `-File` で実際に流し、最後の行が `REPRODUCED` になるか（作者の PC では16件すべて）。既定のコンソールのコードページで流す（65001 だと t05・t09 が隠れる）
+- `check_links.py`: ページ数（37）、相対リンク切れ、title と description、ハングルの混入
+- 各ページの「30秒で確かめる」のコードを、読者と同じく `-File` で実際に流し、最後の行が `REPRODUCED` になるか（作者の PC では17件すべて）。既定のコンソールのコードページで流す（65001 だと t05・t09 が隠れる）
 
 - `check-paste.ps1`: 同じコードを `powershell -Command -` に1行ずつ流す（読者が画面に貼るのに近い形）。2026-10-22 に15件 REPRODUCED（t13 は外した）。直した環境（$OutputEncoding・[Console]::OutputEncoding・PYTHONIOENCODING を UTF-8、単一引用符）では t04/t05/t06/t12 が NOT REPRODUCED に変わることも確認
 

@@ -450,6 +450,42 @@ if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks o
     },
 ]
 
+
+TRAPS.append({
+    "id": "h03",
+    "claude": True,
+    "check": HEAD + r"""foreach ($f in @("$env:USERPROFILE\.claude\settings.json", "$PWD\.claude\settings.json", "$PWD\.claude\settings.local.json")) {
+  if (Test-Path -LiteralPath $f) { try { $v = (Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json).disableAllHooks; "your settings: $f -> disableAllHooks=$v" } catch { "your settings: $f -> not valid JSON" } }
+}
+[IO.File]::WriteAllText("$d\deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
+$hook = 'powershell -NoProfile -ExecutionPolicy Bypass -File \"' + ($d -replace '\\', '/') + '/deny.ps1\"'
+[IO.File]::WriteAllText("$d\s.json", '{"disableAllHooks":true,"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK","onFailure":"block"}]}]}}'.Replace('HOOK', $hook))
+Push-Location $d
+'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+Pop-Location
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"deny hook with onFailure block, plus disableAllHooks true: hook called=$c, written=$w"
+if ((-not $c) -and $w) """ + YES,
+    "ja": {
+        "title": "Claude Code のフックが1つも動かない（disableAllHooks が残っている）",
+        "search": ["Claude Code フック 動かない", "Claude Code hook 実行されない", "disableAllHooks", "PreToolUse 呼ばれない"],
+        "symptom": "書き込みを止めるフックも、通知のフックも、何も動かない。エラーも警告も出ない。試しに一時的に止めたつもりの設定が、そのまま残っていることがある。",
+        "why": "設定ファイルに \"disableAllHooks\": true があると、Claude Code はそのファイルが効く範囲のフックを全部動かさない（管理者の設定で入れたフックは除く）。値は設定の優先順位で決まり、あなた用の設定（~/.claude/settings.json）で true でも、プロジェクトの設定で false なら動く。onFailure: \"block\" を付けた安全装置も、呼ばれないので止めない。",
+        "fix": "その行を消す（または false にする）。確かめるコードの最初の行に、あなたの設定ファイルごとの値が出る。1回だけフックを外して動かしたいなら、設定ファイルに書かずに、コマンドの --settings で渡す。",
+        "fixcode": "claude -p --settings '{\"disableAllHooks\": true}'   # その1回だけ止める（ファイルには残らない）",
+        "result": "拒否するフック（onFailure: block 付き）を入れても、disableAllHooks: true と一緒だと、フックは呼ばれず書き込まれた",
+    },
+    "en": {
+        "title": "No Claude Code hook runs at all (disableAllHooks is still set)",
+        "search": ["claude code hooks not running", "claude code hook not triggered", "disableAllHooks", "PreToolUse hook never called"],
+        "symptom": "Your write guard, your notification hook, nothing runs. No error, no warning. A setting you added to pause hooks for a moment may still be there.",
+        "why": "With \"disableAllHooks\": true in a settings file, Claude Code runs none of the hooks that file reaches (managed-policy hooks excepted). The value follows settings precedence: true in your user settings (~/.claude/settings.json) is overridden by false in the project's settings. A guard with onFailure: \"block\" does not help, because it is never called.",
+        "fix": "Remove the line (or set it to false). The first lines of the check print the value in each of your settings files. To skip hooks for a single run, pass it on the command line with --settings instead of writing it to a file.",
+        "fixcode": "claude -p --settings '{\"disableAllHooks\": true}'   # skips hooks for this run only; nothing is saved",
+        "result": "a denying hook with onFailure: block, together with disableAllHooks: true, was never called and the file was written",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
