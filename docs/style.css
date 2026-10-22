@@ -1,0 +1,24 @@
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5a52;--line:#e2ded4;--card:#ffffff;--accent:#9a3412;--code:#f2efe8;--ok:#166534}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161513;--fg:#ecebe6;--muted:#a8a49a;--line:#34312b;--card:#1f1e1b;--accent:#f0a46a;--code:#26241f;--ok:#86efac}}
+:root[data-theme="dark"]{--bg:#161513;--fg:#ecebe6;--muted:#a8a49a;--line:#34312b;--card:#1f1e1b;--accent:#f0a46a;--code:#26241f;--ok:#86efac}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif}
+main,header,footer{max-width:760px;margin:0 auto;padding:0 16px}
+header{padding-top:20px;display:flex;justify-content:space-between;gap:12px;font-size:14px}
+a{color:var(--accent)}
+h1{font-size:1.6rem;line-height:1.35;margin:.6em 0 .4em}
+h2{font-size:1.1rem;margin:2em 0 .5em;padding-bottom:.25em;border-bottom:1px solid var(--line)}
+.id{font:600 13px Consolas,"Cascadia Mono",Menlo,monospace;color:var(--muted)}
+.lead{color:var(--muted)}
+pre{position:relative;background:var(--code);border:1px solid var(--line);border-radius:8px;padding:40px 14px 14px;overflow-x:auto;font:13.5px/1.55 Consolas,"Cascadia Mono",Menlo,monospace;white-space:pre}
+pre code{font-family:inherit}
+pre button{position:absolute;top:8px;right:8px;font:12px system-ui;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);cursor:pointer}
+.note{font-size:14px;color:var(--muted)}
+.result{background:var(--card);border-left:3px solid var(--ok);padding:10px 14px;border-radius:4px}
+ul.tags{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+ul.tags li{border:1px solid var(--line);border-radius:999px;padding:2px 12px;font-size:14px;color:var(--muted)}
+ol.list{padding:0;list-style:none}
+ol.list li{border-bottom:1px solid var(--line);padding:12px 0}
+ol.list a{text-decoration:none;font-weight:600}
+.kit{margin-top:2.5em;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+footer{margin:40px auto;color:var(--muted);font-size:13px}

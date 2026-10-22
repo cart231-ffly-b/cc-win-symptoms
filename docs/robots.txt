@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://cart231-ffly-b.github.io/cc-win-symptoms/sitemap.xml
