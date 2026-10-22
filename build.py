@@ -2,7 +2,9 @@
     python build.py
 Everything comes from traps.py. Do not edit docs/ by hand.
 """
+import datetime
 import html
+import os
 import pathlib
 import shutil
 
@@ -15,13 +17,20 @@ CHECKS = ROOT / "checks"
 BASE = "https://cart231-ffly-b.github.io/cc-win-symptoms/"
 TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 
+JA_REPO = ("14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）", TRAPS_REPO)
+# The note articles go public on these dates. Before that, a link to them is a dead
+# link, so the page points to something that already exists. Rebuild after each date.
+JA_NOTE = {
+    "free_t": ("2026-10-29", ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"), JA_REPO),
+    "free_h": ("2026-11-05", ("安全フックは、遅れると黙って素通りする（無料の記事）", "https://note.com/sodateru_ai/n/n17e499f58486"), JA_REPO),
+    "kit": ("2026-10-31", ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"),
+            ("cc-win-kit 英語版（Payhip、19ドル。日本語版は 2026年10月31日に note で公開）", "https://payhip.com/b/bRnDJ")),
+}
+# BUILD_DATE=2026-11-05 python build.py  shows what the site looks like on that day
+TODAY = os.environ.get("BUILD_DATE") or datetime.date.today().isoformat()
+
 LINKS = {
-    "ja": {
-        "free_t": ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"),
-        "free_h": ("安全フックは、遅れると黙って素通りする（無料の記事）", "https://note.com/sodateru_ai/n/n17e499f58486"),
-        "kit": ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"),
-        "repo": ("14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）", TRAPS_REPO),
-    },
+    "ja": dict({k: (live if TODAY >= day else before) for k, (day, live, before) in JA_NOTE.items()}, repo=JA_REPO),
     "en": {
         "free_t": ("cc-win-traps: run all 14 checks at once (free, MIT)", TRAPS_REPO),
         "free_h": ("cc-win-traps: run all 14 checks at once (free, MIT)", TRAPS_REPO),
@@ -52,7 +61,7 @@ T = {
         "index": "一覧へ",
         "hooks": "Claude Code のフック",
         "ps": "PowerShell・Python・cmd",
-        "footer": "作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。",
+        "footer": "作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。",
     },
     "en": {
         "site": "When Claude Code breaks silently on Windows",
@@ -75,7 +84,7 @@ T = {
         "index": "All symptoms",
         "hooks": "Claude Code hooks",
         "ps": "PowerShell, Python, cmd",
-        "footer": "By Kamijo Aoto. Covers what was verified on the author's machine.",
+        "footer": "By Kamijo Aoto. Covers what was verified on the author's machine. Written with AI assistance: Claude Code drafted the text and ran the checks.",
     },
 }
 
@@ -237,7 +246,7 @@ def main():
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"<url><loc>{u}</loc></url>\n" for u in urls) + "</urlset>\n", encoding="utf-8")
     (DOCS / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {BASE}sitemap.xml\n", encoding="utf-8")
-    print(f"pages: {len(urls)}  checks: {len(TRAPS)}")
+    print(f"pages: {len(urls)}  checks: {len(TRAPS)}  links as of: {TODAY}")
 
 
 if __name__ == "__main__":

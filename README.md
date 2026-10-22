@@ -41,4 +41,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1 -SkipClaude -Ski
 2. Settings → Pages → Branch `main`、フォルダ `/docs`
 3. URL は `https://cart231-ffly-b.github.io/cc-win-symptoms/` を仮定している（`build.py` の `BASE`。違ったら直して build）
 
-**公開はリンク先の記事が出た後（11-05 以降）。** ページから note の 14か所（10-29）・キット（10-31）・旗艦2（11-05）と、GitHub の cc-win-traps（未公開）に張っている。**英語のページの「関連」は cc-win-traps だけなので、cc-win-traps を先に公開する。** 英語のページのキットは Payhip に張っている → **Payhip の支払いが通るようになってから**（2026-10-22 時点で Stripe が本番の支払いを受けられない）。
+**今すぐ公開してよい（2026-10-23 に変更）。** cc-win-traps は公開済み、Payhip の支払いは 10-22 から通る。日本語のページから張る note の記事（14か所 10-29・キット 10-31・旗艦2 11-05）は、`build.py` が**作った日の日付**で切り替える。公開前は cc-win-traps と Payhip の英語版に張り、リンク切れを出さない（`JA_NOTE`）。
+
+- **10-29・10-31・11-05 の各日に** `python build.py; python check_links.py` → `docs/` をコミット → push。やらないと日本語のページは古い行き先のまま（切れはしない）
+- ある日の見た目を確かめる: `BUILD_DATE=2026-11-05 python build.py`（確かめたら日付なしでもう一度 build して戻す）
+
+以前は「11-05 以降に公開」としていた。理由は note の記事へのリンク切れと、Payhip の支払いが通らないことだった（10-22 に解決）。
