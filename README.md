@@ -37,8 +37,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1 -SkipClaude -Ski
 
 ## 公開（本人）
 
-1. GitHub に `cc-win-symptoms` を作り、`git -C C:/Users/kosoh/cc-win-symptoms push`
-2. Settings → Pages → Branch `main`、フォルダ `/docs`
+1行で済む（2026-10-23）: `powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/kosoh/cc-win-symptoms/publish.ps1`
+   - 公開リポジトリを作る → **main だけ** push（backup ブランチは本名入りなので出さない）→ Pages を main の `/docs` で有効にする
+   - 先に止まる条件: gh 未ログイン・main 以外にいる・未コミットの変更・main に noreply 以外の作者メール
+   - `-DryRun` を付けると何もせず確認だけ（作者の PC で通ることを確認済み）
 3. URL は `https://cart231-ffly-b.github.io/cc-win-symptoms/` を仮定している（`build.py` の `BASE`。違ったら直して build）
 
 **今すぐ公開してよい（2026-10-23 に変更）。** cc-win-traps は公開済み、Payhip の支払いは 10-22 から通る。日本語のページから張る note の記事（14か所 10-29・キット 10-31・旗艦2 11-05）は、`build.py` が**作った日の日付**で切り替える。公開前は cc-win-traps と Payhip の英語版に張り、リンク切れを出さない（`JA_NOTE`）。
