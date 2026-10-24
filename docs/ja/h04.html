@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す | Windows で Claude Code が黙って壊れるとき</title>
+<meta name="description" content="書き込みを全部拒否するフックを Python で書いた。英数字のフォルダでは止まるのに、名前が日本語のフォルダへの書き込みは通る。エラーも警告も出ない。">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h04.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h04.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h04.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す | Windows で Claude Code が黙って壊れるとき">
+<meta property="og:description" content="書き込みを全部拒否するフックを Python で書いた。英数字のフォルダでは止まるのに、名前が日本語のフォルダへの書き込みは通る。エラーも警告も出ない。">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h04.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">一覧へ</a><a href="../en/h04.html" hreflang="en">English</a></header>
+<main>
+<p class="id">H04</p>
+<h1>Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</h1>
+<h2>症状</h2>
+<p>書き込みを全部拒否するフックを Python で書いた。英数字のフォルダでは止まるのに、名前が日本語のフォルダへの書き込みは通る。エラーも警告も出ない。</p>
+<h2>30秒で確かめる</h2>
+<p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。 claude を1回呼ぶので、1分ほどかかります。</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$jp = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+$t = Join-Path $d $jp; New-Item -ItemType Directory $t -Force | Out-Null
+$py = &amp; python -c &quot;import sys; print(sys.executable)&quot; 2&gt;$null | Select-Object -First 1
+if (-not $py) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+[IO.File]::WriteAllText(&quot;$d\deny_all.py&quot;, &quot;import sys, json`nopen(r&#x27;MARK&#x27;, &#x27;w&#x27;).close()`ndata = json.load(sys.stdin)`nprint(json.dumps({&#x27;hookSpecificOutput&#x27;: {&#x27;hookEventName&#x27;: &#x27;PreToolUse&#x27;, &#x27;permissionDecision&#x27;: &#x27;deny&#x27;, &#x27;permissionDecisionReason&#x27;: &#x27;deny_all&#x27;}}))`n&quot;.Replace(&#x27;MARK&#x27;, &quot;$d\called.txt&quot;))
+$hook = &#x27;\&quot;&#x27; + ($py -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;\&quot; \&quot;&#x27; + ($d -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;/deny_all.py\&quot;&#x27;
+[IO.File]::WriteAllText(&quot;$d\s.json&quot;, &#x27;{&quot;hooks&quot;:{&quot;PreToolUse&quot;:[{&quot;matcher&quot;:&quot;Write|Edit&quot;,&quot;hooks&quot;:[{&quot;type&quot;:&quot;command&quot;,&quot;command&quot;:&quot;HOOK&quot;}]}]}}&#x27;.Replace(&#x27;HOOK&#x27;, $hook))
+[IO.File]::WriteAllText(&quot;$d\prompt.md&quot;, &quot;Use the Write tool once to create the file $t\written.txt with the content hi. Do not retry if it is blocked.&quot;, (New-Object Text.UTF8Encoding $false))
+Push-Location $d
+&quot;Read the file $d\prompt.md and do exactly what it says.&quot; | claude -p --settings s.json --permission-mode acceptEdits --allowedTools &quot;Read,Write&quot; | Out-Null
+Pop-Location
+$w = Test-Path &quot;$t\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&quot;
+&quot;deny-all Python hook, target folder with a Japanese name: hook called=$c, written=$w&quot;
+if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
+<h2>なぜ起きるか</h2>
+<p>Claude Code はフックの標準入力に UTF-8 の JSON を送る。日本語 Windows の Python は、標準入力が端末でないとき cp932 で読むので、json.load(sys.stdin) が日本語のパスで JSONDecodeError（Invalid \escape）になる。「語」の UTF-8 の最後のバイトが cp932 の2バイト文字の1バイト目と読まれ、後ろの \ を巻き込むため。フックが例外で落ちた終了コード 1 は「止めない失敗」なので、onFailure を付けていなければ書き込みは進む。</p>
+<h2>直し方</h2>
+<p>標準入力をバイト列のまま読んで UTF-8 で解く。あわせて &quot;onFailure&quot;: &quot;block&quot; を付ける（直す前のフックのままでも、これで止まった）。拒否の理由は ASCII で出す（json.dumps の既定のまま）。</p>
+<pre><code>import sys, json
+data = json.loads(sys.stdin.buffer.read().decode(&quot;utf-8&quot;))</code></pre>
+<h2>作者の PC での結果</h2>
+<p class="result">同じ拒否フックで、英数字のフォルダは止まり、日本語のフォルダは書き込まれた。onFailure: block を足すと止まった（2026-10-24、Claude Code 2.1.310）</p>
+<p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>
+<h2>こんな言葉で探した人へ</h2>
+<ul class="tags"><li>Claude Code フック 日本語 パス</li><li>PreToolUse python 文字化け</li><li>json.load sys.stdin cp932</li><li>Invalid \escape JSONDecodeError 日本語</li><li>Claude Code hook 素通り 日本語</li></ul>
+<h2>関連</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）</a></li></ul>
+<div class="kit"><p>この穴を最初から踏まないようにした部品（書き込み先を絞る安全装置〈onFailure: block 付き〉、夜の無人実行、ファイルとフックの設定を調べる健康診断、CLAUDE.md の型、試験一式）は cc-win-kit にまとめています。</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit 英語版（Payhip、19ドル。日本語版は 2026年10月31日に note で公開）</a></p></div>
+<h2>ほかの症状</h2>
+<ul><li><a href="t01.html">PowerShell の終了コードが、2 を返したのに 1 になる</a></li><li><a href="t02.html">-File で渡した2つ目の引数が、エラーなしで消える</a></li><li><a href="t03.html">-File で a,b と渡すと、配列にならず1つの文字列になる</a></li><li><a href="t04.html">パイプで渡した日本語が ? になる（claude -p・python・git）</a></li><li><a href="t05.html">python や claude の出力を変数に入れると文字化けする</a></li><li><a href="t06.html">手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる</a></li><li><a href="t07.html">PYTHONIOENCODING を設定したのに、python -I だと効かない</a></li><li><a href="t08.html">日本語入りの .ps1 が、構文エラーになるか文字化けして動く</a></li><li><a href="t09.html">.cmd / .bat のコメントが、コマンドとして実行される</a></li><li><a href="t10.html">powershell -Command の1行に書いた $変数 が、呼ぶ前に消える</a></li><li><a href="t11.html">Get-ChildItem の -Include が効かず、全部のファイルが返る</a></li><li><a href="t12.html">&quot;...&quot; に書いた Markdown のバッククォートで、文字が消えて改行が入る</a></li><li><a href="t13.html">書き込み中のログが 0 バイトに見える</a></li><li><a href="t14.html">claude -p --allowedTools の後ろに書いたプロンプトが飲み込まれる</a></li><li><a href="h01.html">Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す</a></li><li><a href="h02.html">PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする</a></li><li><a href="h03.html">Claude Code のフックが1つも動かない（disableAllHooks が残っている）</a></li></ul>
+</main>
+<footer>作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

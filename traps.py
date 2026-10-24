@@ -486,6 +486,44 @@ if ((-not $c) -and $w) """ + YES,
     },
 })
 
+TRAPS.append({
+    "id": "h04",
+    "claude": True,
+    "check": HEAD + r"""$jp = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+$t = Join-Path $d $jp; New-Item -ItemType Directory $t -Force | Out-Null
+$py = & python -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+if (-not $py) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+[IO.File]::WriteAllText("$d\deny_all.py", "import sys, json`nopen(r'MARK', 'w').close()`ndata = json.load(sys.stdin)`nprint(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': 'deny_all'}}))`n".Replace('MARK', "$d\called.txt"))
+$hook = '\"' + ($py -replace '\\', '/') + '\" \"' + ($d -replace '\\', '/') + '/deny_all.py\"'
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
+[IO.File]::WriteAllText("$d\prompt.md", "Use the Write tool once to create the file $t\written.txt with the content hi. Do not retry if it is blocked.", (New-Object Text.UTF8Encoding $false))
+Push-Location $d
+"Read the file $d\prompt.md and do exactly what it says." | claude -p --settings s.json --permission-mode acceptEdits --allowedTools "Read,Write" | Out-Null
+Pop-Location
+$w = Test-Path "$t\written.txt"; $c = Test-Path "$d\called.txt"
+"deny-all Python hook, target folder with a Japanese name: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}""",
+    "ja": {
+        "title": "Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す",
+        "search": ["Claude Code フック 日本語 パス", "PreToolUse python 文字化け", "json.load sys.stdin cp932", "Invalid \\escape JSONDecodeError 日本語", "Claude Code hook 素通り 日本語"],
+        "symptom": "書き込みを全部拒否するフックを Python で書いた。英数字のフォルダでは止まるのに、名前が日本語のフォルダへの書き込みは通る。エラーも警告も出ない。",
+        "why": "Claude Code はフックの標準入力に UTF-8 の JSON を送る。日本語 Windows の Python は、標準入力が端末でないとき cp932 で読むので、json.load(sys.stdin) が日本語のパスで JSONDecodeError（Invalid \\escape）になる。「語」の UTF-8 の最後のバイトが cp932 の2バイト文字の1バイト目と読まれ、後ろの \\ を巻き込むため。フックが例外で落ちた終了コード 1 は「止めない失敗」なので、onFailure を付けていなければ書き込みは進む。",
+        "fix": "標準入力をバイト列のまま読んで UTF-8 で解く。あわせて \"onFailure\": \"block\" を付ける（直す前のフックのままでも、これで止まった）。拒否の理由は ASCII で出す（json.dumps の既定のまま）。",
+        "fixcode": "import sys, json\ndata = json.loads(sys.stdin.buffer.read().decode(\"utf-8\"))",
+        "result": "同じ拒否フックで、英数字のフォルダは止まり、日本語のフォルダは書き込まれた。onFailure: block を足すと止まった（2026-10-24、Claude Code 2.1.310）",
+    },
+    "en": {
+        "title": "A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name",
+        "search": ["claude code hook non-ascii path", "PreToolUse python hook unicode path", "json.load sys.stdin windows encoding", "JSONDecodeError Invalid \\escape hook", "claude code hook bypass japanese folder"],
+        "symptom": "You wrote a Python hook that denies every write. It blocks writes into an ASCII folder, but a write into a folder with a Japanese name goes through. No error, no warning.",
+        "why": "Claude Code sends UTF-8 JSON to the hook's stdin. On Japanese Windows, Python reads a non-console stdin as cp932, so json.load(sys.stdin) raises JSONDecodeError (Invalid \\escape) on a Japanese path: the last UTF-8 byte of a character is read as a cp932 lead byte and swallows the following backslash. The hook crashes with exit code 1, a non-blocking error, so without onFailure the write proceeds. Other non-UTF-8 code pages can mangle the input in similar ways.",
+        "fix": "Read stdin as bytes and decode it as UTF-8. Also add \"onFailure\": \"block\" (it blocked even with the unfixed hook). Keep the deny reason ASCII (json.dumps default).",
+        "fixcode": "import sys, json\ndata = json.loads(sys.stdin.buffer.read().decode(\"utf-8\"))",
+        "result": "the same deny hook blocked the ASCII folder and let the Japanese-named folder through; with onFailure: block it blocked (2026-10-24, Claude Code 2.1.310)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:

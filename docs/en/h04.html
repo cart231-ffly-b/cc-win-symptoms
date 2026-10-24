@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="You wrote a Python hook that denies every write. It blocks writes into an ASCII folder, but a write into a folder with a Japanese name goes through. N">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h04.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h04.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h04.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="You wrote a Python hook that denies every write. It blocks writes into an ASCII folder, but a write into a folder with a Japanese name goes through. N">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h04.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/h04.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">H04</p>
+<h1>A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</h1>
+<h2>Symptom</h2>
+<p>You wrote a Python hook that denies every write. It blocks writes into an ASCII folder, but a write into a folder with a Japanese name goes through. No error, no warning.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$jp = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+$t = Join-Path $d $jp; New-Item -ItemType Directory $t -Force | Out-Null
+$py = &amp; python -c &quot;import sys; print(sys.executable)&quot; 2&gt;$null | Select-Object -First 1
+if (-not $py) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+[IO.File]::WriteAllText(&quot;$d\deny_all.py&quot;, &quot;import sys, json`nopen(r&#x27;MARK&#x27;, &#x27;w&#x27;).close()`ndata = json.load(sys.stdin)`nprint(json.dumps({&#x27;hookSpecificOutput&#x27;: {&#x27;hookEventName&#x27;: &#x27;PreToolUse&#x27;, &#x27;permissionDecision&#x27;: &#x27;deny&#x27;, &#x27;permissionDecisionReason&#x27;: &#x27;deny_all&#x27;}}))`n&quot;.Replace(&#x27;MARK&#x27;, &quot;$d\called.txt&quot;))
+$hook = &#x27;\&quot;&#x27; + ($py -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;\&quot; \&quot;&#x27; + ($d -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;/deny_all.py\&quot;&#x27;
+[IO.File]::WriteAllText(&quot;$d\s.json&quot;, &#x27;{&quot;hooks&quot;:{&quot;PreToolUse&quot;:[{&quot;matcher&quot;:&quot;Write|Edit&quot;,&quot;hooks&quot;:[{&quot;type&quot;:&quot;command&quot;,&quot;command&quot;:&quot;HOOK&quot;}]}]}}&#x27;.Replace(&#x27;HOOK&#x27;, $hook))
+[IO.File]::WriteAllText(&quot;$d\prompt.md&quot;, &quot;Use the Write tool once to create the file $t\written.txt with the content hi. Do not retry if it is blocked.&quot;, (New-Object Text.UTF8Encoding $false))
+Push-Location $d
+&quot;Read the file $d\prompt.md and do exactly what it says.&quot; | claude -p --settings s.json --permission-mode acceptEdits --allowedTools &quot;Read,Write&quot; | Out-Null
+Pop-Location
+$w = Test-Path &quot;$t\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&quot;
+&quot;deny-all Python hook, target folder with a Japanese name: hook called=$c, written=$w&quot;
+if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
+<h2>Why it happens</h2>
+<p>Claude Code sends UTF-8 JSON to the hook&#x27;s stdin. On Japanese Windows, Python reads a non-console stdin as cp932, so json.load(sys.stdin) raises JSONDecodeError (Invalid \escape) on a Japanese path: the last UTF-8 byte of a character is read as a cp932 lead byte and swallows the following backslash. The hook crashes with exit code 1, a non-blocking error, so without onFailure the write proceeds. Other non-UTF-8 code pages can mangle the input in similar ways.</p>
+<h2>Fix</h2>
+<p>Read stdin as bytes and decode it as UTF-8. Also add &quot;onFailure&quot;: &quot;block&quot; (it blocked even with the unfixed hook). Keep the deny reason ASCII (json.dumps default).</p>
+<pre><code>import sys, json
+data = json.loads(sys.stdin.buffer.read().decode(&quot;utf-8&quot;))</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">the same deny hook blocked the ASCII folder and let the Japanese-named folder through; with onFailure: block it blocked (2026-10-24, Claude Code 2.1.310)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>claude code hook non-ascii path</li><li>PreToolUse python hook unicode path</li><li>json.load sys.stdin windows encoding</li><li>JSONDecodeError Invalid \escape hook</li><li>claude code hook bypass japanese folder</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>
