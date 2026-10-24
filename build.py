@@ -120,6 +120,13 @@ function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelecto
 e = html.escape
 
 
+def card(title, desc, url):
+    # share card for X / Slack / Discord; the image comes from make_og.py
+    return (f'<meta property="og:type" content="website">\n<meta property="og:title" content="{e(title)}">\n'
+            f'<meta property="og:description" content="{e(desc)}">\n<meta property="og:url" content="{url}">\n'
+            f'<meta property="og:image" content="{BASE}og.png">\n<meta name="twitter:card" content="summary_large_image">\n')
+
+
 def head(lang, title, desc, path, alt_path):
     other = "en" if lang == "ja" else "ja"
     return f"""<!doctype html>
@@ -132,7 +139,7 @@ def head(lang, title, desc, path, alt_path):
 <link rel="canonical" href="{BASE}{path}">
 <link rel="alternate" hreflang="{lang}" href="{BASE}{path}">
 <link rel="alternate" hreflang="{other}" href="{BASE}{alt_path}">
-<link rel="stylesheet" href="../style.css">
+{card(title, desc, BASE + path)}<link rel="stylesheet" href="../style.css">
 </head>
 <body>
 """
@@ -204,7 +211,7 @@ def root_index():
 <title>Windows Claude Code Traps</title>
 <meta name="description" content="{e(T['en']['lead'][:150])}">
 <link rel="canonical" href="{BASE}">
-<link rel="stylesheet" href="style.css">
+{card(T['en']['site'], T['en']['lead'][:150], BASE)}<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
@@ -227,6 +234,7 @@ def main():
     CHECKS.mkdir()
     (DOCS / "style.css").write_text(CSS, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
+    shutil.copyfile(ROOT / "assets" / "og.png", DOCS / "og.png")
     (DOCS / "index.html").write_text(root_index(), encoding="utf-8")
     urls = [BASE]
     for lang in ("ja", "en"):
