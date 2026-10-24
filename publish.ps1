@@ -45,5 +45,10 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 Step "enable Pages (main:/docs)"
 & $gh api -X POST "repos/$repo/pages" -f "source[branch]=main" -f "source[path]=/docs" *> $null
 if ($LASTEXITCODE -ne 0) { Write-Host "Pages may already be on; current setting:" }
-& $gh api "repos/$repo/pages" --jq ".html_url + \"  status=\" + (.status // \"pending\")"
+# Note: passing a quoted --jq expression to gh.exe here breaks under PowerShell 5.1's
+# native-arg re-quoting (confirmed 2026-10-24: "accepts 1 arg(s), received N"). Parse in PowerShell instead.
+$pagesJson = & $gh api "repos/$repo/pages" | ConvertFrom-Json
+$pagesStatus = $pagesJson.status
+if ([string]::IsNullOrEmpty($pagesStatus)) { $pagesStatus = "pending" }
+Write-Host ($pagesJson.html_url + "  status=" + $pagesStatus)
 Write-Host "DONE. First build takes ~1 minute: https://cart231-ffly-b.github.io/cc-win-symptoms/"
