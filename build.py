@@ -235,6 +235,9 @@ def main():
     CHECKS.mkdir()
     (DOCS / "style.css").write_text(CSS, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
+    # Google Search Console の所有者確認。消すと確認が外れる
+    name = "google35a4e9116c54b951.html"
+    (DOCS / name).write_text(f"google-site-verification: {name}", encoding="utf-8", newline="")
     shutil.copyfile(ROOT / "assets" / "og.png", DOCS / "og.png")
     (DOCS / "index.html").write_text(root_index(), encoding="utf-8")
     urls = [BASE]
