@@ -20,6 +20,29 @@ TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 JA_REPO = ("14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）", TRAPS_REPO)
 # The note articles go public on these dates. Before that, a link to them is a dead
 # link, so the page points to something that already exists. Rebuild after each date.
+PRIVACY = """<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Privacy policy for kaboomie-stats</title><link rel="stylesheet" href="style.css"></head><body>
+<h1>Privacy policy for kaboomie-stats</h1>
+<p>kaboomie-stats is a private tool used only by its operator. It reads statistics of the operator's own YouTube channel through the YouTube Data API and the YouTube Analytics API. It is not offered to anyone else.</p>
+<ul>
+<li>It requests read-only access. It cannot upload, change or delete videos.</li>
+<li>It reads channel and video statistics such as views, watch time and subscribers gained. It does not collect data about other people.</li>
+<li>The numbers are stored on the operator's own PC and in the operator's personal cloud notes. They are not sold or given to anyone.</li>
+<li>Access can be removed at any time from <a href="https://myaccount.google.com/permissions">Google Account permissions</a>.</li>
+</ul>
+<p>Questions: <a href="https://github.com/cart231-ffly-b/cc-win-symptoms/issues">GitHub issues</a>. Last updated: 2026-11-01.</p>
+<hr>
+<h2>日本語</h2>
+<p>kaboomie-stats は運営者だけが使う道具です。運営者自身の YouTube チャンネルの数字を、公式の API で読み取ります。ほかの人には提供していません。</p>
+<ul>
+<li>権限は読み取りだけで、動画の投稿、変更、削除はできません。</li>
+<li>読むのはチャンネルと動画の数字（再生、視聴時間、増えた登録など）です。他人のデータは集めません。</li>
+<li>数字は運営者の PC と個人のクラウドのノートに保存し、販売や第三者への提供はしません。</li>
+<li>権限は <a href="https://myaccount.google.com/permissions">Google アカウントの権限のページ</a> からいつでも取り消せます。</li>
+</ul>
+</body></html>
+"""
 NOT_YET = "9999-12-31"  # note は 2026-11-01 時点で下書きのまま（URL は 404）。公開したら、その日付に変える
 JA_NOTE = {
     "free_t": (NOT_YET, ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"), JA_REPO),
@@ -235,6 +258,7 @@ def main():
     CHECKS.mkdir()
     (DOCS / "style.css").write_text(CSS, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
+    (DOCS / "privacy.html").write_text(PRIVACY, encoding="utf-8")
     # Google Search Console の所有者確認。消すと確認が外れる
     name = "google35a4e9116c54b951.html"
     (DOCS / name).write_text(f"google-site-verification: {name}", encoding="utf-8", newline="")
