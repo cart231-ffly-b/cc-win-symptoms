@@ -26,7 +26,7 @@ PRIVACY = """<!DOCTYPE html>
 <h1>Privacy policy for kaboomie-stats</h1>
 <p>kaboomie-stats is a private tool used only by its operator. It reads statistics of the operator's own YouTube channel through the YouTube Data API and the YouTube Analytics API, and uploads the operator's own videos to that channel. It is not offered to anyone else.</p>
 <ul>
-<li>The daily statistics use read-only access. A separate permission, used only when the operator runs it, uploads the operator's own videos as private and can schedule their publication. It does not change or delete existing videos.</li>
+<li>The daily statistics use read-only access. A separate permission, used only when the operator runs it, uploads the operator's own videos as private, schedules their publication, and sets their playlists, thumbnails and descriptions. It is not used to delete videos.</li>
 <li>It reads channel and video statistics such as views, watch time and subscribers gained. It does not collect data about other people.</li>
 <li>The numbers are stored on the operator's own PC and in the operator's personal cloud notes. They are not sold or given to anyone.</li>
 <li>Access can be removed at any time from <a href="https://myaccount.google.com/permissions">Google Account permissions</a>.</li>
@@ -36,7 +36,7 @@ PRIVACY = """<!DOCTYPE html>
 <h2>日本語</h2>
 <p>kaboomie-stats は運営者だけが使う道具です。運営者自身の YouTube チャンネルの数字を公式の API で読み取り、運営者自身の動画をそのチャンネルへ上げます。ほかの人には提供していません。</p>
 <ul>
-<li>毎日の数字の読み取りは読み取りの権限だけを使います。別の権限を、運営者が実行したときだけ使い、運営者自身の動画を非公開で上げ、公開日時を予約します。既存の動画の変更や削除はしません。</li>
+<li>毎日の数字の読み取りは読み取りの権限だけを使います。別の権限を、運営者が実行したときだけ使い、運営者自身の動画を非公開で上げ、公開日時の予約、再生リスト、サムネイル、説明欄の設定をします。動画の削除には使いません。</li>
 <li>読むのはチャンネルと動画の数字（再生、視聴時間、増えた登録など）です。他人のデータは集めません。</li>
 <li>数字は運営者の PC と個人のクラウドのノートに保存し、販売や第三者への提供はしません。</li>
 <li>権限は <a href="https://myaccount.google.com/permissions">Google アカウントの権限のページ</a> からいつでも取り消せます。</li>
