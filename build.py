@@ -20,11 +20,12 @@ TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 JA_REPO = ("14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）", TRAPS_REPO)
 # The note articles go public on these dates. Before that, a link to them is a dead
 # link, so the page points to something that already exists. Rebuild after each date.
+NOT_YET = "9999-12-31"  # note は 2026-11-01 時点で下書きのまま（URL は 404）。公開したら、その日付に変える
 JA_NOTE = {
-    "free_t": ("2026-10-29", ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"), JA_REPO),
-    "free_h": ("2026-11-05", ("安全フックは、遅れると黙って素通りする（無料の記事）", "https://note.com/sodateru_ai/n/n17e499f58486"), JA_REPO),
-    "kit": ("2026-10-31", ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"),
-            ("cc-win-kit 英語版（Payhip、19ドル。日本語版は 2026年10月31日に note で公開）", "https://payhip.com/b/bRnDJ")),
+    "free_t": (NOT_YET, ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"), JA_REPO),
+    "free_h": (NOT_YET, ("安全フックは、遅れると黙って素通りする（無料の記事）", "https://note.com/sodateru_ai/n/n17e499f58486"), JA_REPO),
+    "kit": (NOT_YET, ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"),
+            ("部品の実装と設計を書いた本（Zenn、1,200円。0〜4章は無料）", "https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps")),
 }
 # BUILD_DATE=2026-11-05 python build.py  shows what the site looks like on that day
 TODAY = os.environ.get("BUILD_DATE") or datetime.date.today().isoformat()
