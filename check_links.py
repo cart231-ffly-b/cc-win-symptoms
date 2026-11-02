@@ -9,7 +9,9 @@ from traps import TRAPS
 
 DOCS = pathlib.Path(__file__).resolve().parent / "docs"
 problems = []
-pages = sorted(DOCS.rglob("*.html"))
+# 症状のページではないもの: Search Console の確認ファイルと、OAuth 審査用のプライバシーページ
+NOT_PAGES = re.compile(r"^(google[0-9a-f]+|privacy)\.html$")
+pages = sorted(p for p in DOCS.rglob("*.html") if not NOT_PAGES.match(p.relative_to(DOCS).as_posix()))
 want = 1 + 2 * (1 + len(TRAPS))
 if len(pages) != want:
     problems.append(f"expected {want} pages, found {len(pages)}")
