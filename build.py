@@ -15,6 +15,7 @@ DOCS = ROOT / "docs"
 CHECKS = ROOT / "checks"
 # Assumed GitHub Pages address; change here if the repository lives elsewhere.
 BASE = "https://cart231-ffly-b.github.io/cc-win-symptoms/"
+INDEXNOW_KEY = "5e01d4778f176e4b4d7c7fbda4d1fbcd"
 TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 
 JA_REPO = ("14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）", TRAPS_REPO)
@@ -262,6 +263,9 @@ def main():
     # Google Search Console の所有者確認。消すと確認が外れる
     name = "google35a4e9116c54b951.html"
     (DOCS / name).write_text(f"google-site-verification: {name}", encoding="utf-8", newline="")
+    # IndexNow（Bing など）の鍵。公開してよい値（仕組み上、誰でも読める）。ai-staff の jobs/michi.py が同じ値で知らせる。
+    # 置き場はこのフォルダの下（Option 2）なので、知らせてよいのは /cc-win-symptoms/ の下の URL だけ
+    (DOCS / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY, encoding="utf-8", newline="")
     shutil.copyfile(ROOT / "assets" / "og.png", DOCS / "og.png")
     (DOCS / "index.html").write_text(root_index(), encoding="utf-8")
     urls = [BASE]
