@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code の PowerShell ツールで、cd したフォルダが次の呼び出しで元に戻る | Windows で Claude Code が黙って壊れるとき</title>
+<meta name="description" content="Claude Code の PowerShell ツールで Set-Location（cd）したのに、次の呼び出しでは最初のフォルダに戻っていて、ファイルが違う場所に書かれる。PowerShell ツールの説明には「作業フォルダは次のコマンドに引き継がれる」と書いてある。">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h12.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h12.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h12.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Claude Code の PowerShell ツールで、cd したフォルダが次の呼び出しで元に戻る | Windows で Claude Code が黙って壊れるとき">
+<meta property="og:description" content="Claude Code の PowerShell ツールで Set-Location（cd）したのに、次の呼び出しでは最初のフォルダに戻っていて、ファイルが違う場所に書かれる。PowerShell ツールの説明には「作業フォルダは次のコマンドに引き継がれる」と書いてある。">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h12.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">一覧へ</a><a href="../en/h12.html" hreflang="en">English</a></header>
+<main>
+<p class="id">H12</p>
+<h1>Claude Code の PowerShell ツールで、cd したフォルダが次の呼び出しで元に戻る</h1>
+<h2>症状</h2>
+<p>Claude Code の PowerShell ツールで Set-Location（cd）したのに、次の呼び出しでは最初のフォルダに戻っていて、ファイルが違う場所に書かれる。PowerShell ツールの説明には「作業フォルダは次のコマンドに引き継がれる」と書いてある。</p>
+<h2>30秒で確かめる</h2>
+<p class="note">PowerShell（Windows PowerShell 5.1）に貼って実行します。一時フォルダ（%TEMP% の下）にだけファイルを作ります。最後に REPRODUCED と出たら、あなたの PC で起きています。 claude を1回呼ぶので、1分ほどかかります。</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+foreach ($v in @(&#x27;1&#x27;, &#x27;0&#x27;)) {
+  $w = Join-Path $d &quot;v$v&quot;; New-Item -ItemType Directory &quot;$w\sub&quot; -Force | Out-Null
+  [IO.File]::WriteAllText(&quot;$w\s.json&quot;, &#x27;{&quot;env&quot;:{&quot;CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR&quot;:&quot;VAL&quot;,&quot;CLAUDE_CODE_USE_POWERSHELL_TOOL&quot;:&quot;1&quot;}}&#x27;.Replace(&#x27;VAL&#x27;, $v))
+  $p = &#x27;You must use the PowerShell tool (not Bash). Call 1: Set-Location sub . Call 2 (a separate PowerShell tool call): [IO.File]::WriteAllText(&quot;OUT&quot;, (Get-Location).Path) . Then stop.&#x27;.Replace(&#x27;OUT&#x27;, &quot;$w\call2.txt&quot;)
+  Push-Location $w
+  $p | claude -p --settings s.json --allowedTools PowerShell | Out-Null
+  Pop-Location
+}
+$r1 = &#x27;&#x27;; $r0 = &#x27;&#x27;
+if (Test-Path &quot;$d\v1\call2.txt&quot;) { $r1 = (Get-Content &quot;$d\v1\call2.txt&quot; -Raw).Trim() }
+if (Test-Path &quot;$d\v0\call2.txt&quot;) { $r0 = (Get-Content &quot;$d\v0\call2.txt&quot; -Raw).Trim() }
+&quot;second PowerShell call after cd sub: MAINTAIN=1 -&gt; $r1 ; MAINTAIN=0 -&gt; $r0&quot;
+if ((-not $r0) -or (-not $r1)) { &#x27;CANNOT CHECK (the PowerShell tool did not run: it needs a Claude Code version with the PowerShell tool)&#x27; } elseif (-not $r0.EndsWith(&#x27;sub&#x27;)) { &#x27;CANNOT CHECK (even with MAINTAIN=0 the cd did not stay)&#x27; } elseif (-not $r1.EndsWith(&#x27;sub&#x27;)) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+<h2>なぜ起きるか</h2>
+<p>環境変数 CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 があると、Claude Code は呼び出しのたびに作業フォルダを最初のフォルダに戻す。Bash ツールの説明はこの設定に合わせて変わるが、PowerShell ツールの説明は「引き継がれる」のまま変わらないので、モデルは前の cd が効いている前提で次のコマンドを書く（公式 issue #111705）。</p>
+<h2>直し方</h2>
+<p>作業フォルダは呼び出しごとに指定する（絶対パスを使うか、同じ呼び出しの中で Set-Location -ErrorAction Stop してから実行する）。その設定が要らないなら外す。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。</p>
+<pre><code>Set-Location -LiteralPath &#x27;C:/work/sub&#x27; -ErrorAction Stop; ./run.ps1</code></pre>
+<h2>作者の PC での結果</h2>
+<p class="result">CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 では2回目の呼び出しが最初のフォルダに戻り、0 では sub のままだった（2026-11-24、Claude Code 2.1.330）</p>
+<p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>
+<h2>こんな言葉で探した人へ</h2>
+<ul class="tags"><li>Claude Code PowerShell ツール cd 戻る</li><li>CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR</li><li>Claude Code PowerShell Set-Location 効かない</li><li>Claude Code 作業フォルダ 戻る</li><li>Working directory persists between commands</li></ul>
+<h2>関連</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）</a></li></ul>
+<div class="kit"><p>この穴を最初から踏まないようにした部品（書き込み先を絞る安全装置〈onFailure: block 付き〉、夜の無人実行、ファイルとフックの設定を調べる健康診断、CLAUDE.md の型、試験一式）は cc-win-kit にまとめています。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">部品の実装と設計を書いた本（Zenn、1,200円。0〜4章は無料）</a></p></div>
+<h2>ほかの症状</h2>
+<ul><li><a href="t01.html">PowerShell の終了コードが、2 を返したのに 1 になる</a></li><li><a href="t02.html">-File で渡した2つ目の引数が、エラーなしで消える</a></li><li><a href="t03.html">-File で a,b と渡すと、配列にならず1つの文字列になる</a></li><li><a href="t04.html">パイプで渡した日本語が ? になる（claude -p・python・git）</a></li><li><a href="t05.html">python や claude の出力を変数に入れると文字化けする</a></li><li><a href="t06.html">手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる</a></li><li><a href="t07.html">PYTHONIOENCODING を設定したのに、python -I だと効かない</a></li><li><a href="t08.html">日本語入りの .ps1 が、構文エラーになるか文字化けして動く</a></li><li><a href="t09.html">.cmd / .bat のコメントが、コマンドとして実行される</a></li><li><a href="t10.html">powershell -Command の1行に書いた $変数 が、呼ぶ前に消える</a></li><li><a href="t11.html">Get-ChildItem の -Include が効かず、全部のファイルが返る</a></li><li><a href="t12.html">&quot;...&quot; に書いた Markdown のバッククォートで、文字が消えて改行が入る</a></li><li><a href="t13.html">書き込み中のログが 0 バイトに見える</a></li><li><a href="t14.html">claude -p --allowedTools の後ろに書いたプロンプトが飲み込まれる</a></li><li><a href="h01.html">Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す</a></li><li><a href="h02.html">PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする</a></li><li><a href="h03.html">Claude Code のフックが1つも動かない（disableAllHooks が残っている）</a></li><li><a href="h04.html">Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</a></li><li><a href="h05.html">Claude Code のフックのパスを \ で書くと、フックが起動せず書き込みが通る（終了コード 127）</a></li><li><a href="h06.html">Windows の短い名前（8.3）で Claude Code に Write・Edit させると、元のファイル名が消える</a></li><li><a href="h09.html">Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる</a></li><li><a href="h10.html">Windows の Claude Code の Bash ツールで、\\（バックスラッシュ2つ）が \ 1つになる</a></li><li><a href="h11.html">Windows の Claude Code の Bash ツールで、%TEMP% の下への cd が次の呼び出しで取り消される</a></li></ul>
+</main>
+<footer>作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

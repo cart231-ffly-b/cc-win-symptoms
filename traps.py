@@ -598,6 +598,140 @@ if ((-not $long) -and ($names -match [regex]::Escape($short))) """ + YES + r"""
     },
 })
 
+TRAPS.append({
+    "id": "h09",
+    "claude": True,
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\p1.txt", 'Run exactly this Bash command and nothing else, then stop: echo ''a$$(b'' > x.txt')
+[IO.File]::WriteAllText("$d\p2.txt", 'Run exactly this Bash command and nothing else, then stop: echo ''a$(b'' > y.txt')
+Push-Location $d
+Get-Content "$d\p2.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Get-Content "$d\p1.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+$y = Test-Path "$d\y.txt"; $x = Test-Path "$d\x.txt"
+"echo with one dollar and a paren -> written=$y; echo with two dollars and a paren -> written=$x"
+if (-not $y) { 'CANNOT CHECK (even the one-dollar command did not run: check that the Bash tool is available and allowed)' } elseif (-not $x) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
+    "ja": {
+        "title": "Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる",
+        "search": ["Claude Code can't rule out a dangerous removal", "Claude Code Bash 止まる rm", "Claude Code $$( 拒否", "Claude Code heredoc 拒否", "bypassPermissions でも止まる"],
+        "symptom": "削除をしていないのに、Bash ツールの呼び出しが「危ない削除かもしれない」という確認で止まり、コマンドが動かない。コマンドの中に $$( という並び（ドル記号2つと丸括弧）がある。確認なしで動くモード（bypassPermissions）でも止まる。",
+        "why": "Claude Code は、Bash のコマンドを実行する前に、消しすぎる削除が無いかを調べる。$$( が入ると、シェルがどう読むかを Claude Code が確かめきれず、削除かもしれないとして止める（公式 issue #108970）。$( が1つだけなら通る。",
+        "fix": "$$( を含む本文は、コマンドに直接書かず、Write ツールでファイルに保存してから使う。どうしてもコマンドに書くなら、\"a\\$\\$(b\" のようにドル記号の前にバックスラッシュを置く。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# Write ツールでファイルに保存してから使う\n# どうしてもコマンドに書くなら\necho \"a\\$\\$(b\"",
+        "result": "echo 'a$(b' > y.txt は通り、echo 'a$$(b' > x.txt は削除の確認で止まって x.txt ができなかった（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "A Claude Code Bash command containing $$( is stopped by the dangerous-removal check",
+        "search": ["claude code can't rule out a dangerous removal", "claude code bash blocked rm check", "claude code $$( denied", "claude code heredoc blocked", "blocked even in bypassPermissions"],
+        "symptom": "A Bash tool call that deletes nothing is stopped by a check that says it may be a dangerous removal, and the command never runs. The command contains $$( (two dollar signs and a parenthesis). It is stopped even in bypassPermissions.",
+        "why": "Before running a Bash command, Claude Code checks it for removals that could delete far too much. With $$( in it, Claude Code cannot be sure how the shell will read the command, so it treats it as a possible removal and stops it (official issue #108970). A single $( goes through.",
+        "fix": "Do not put text containing $$( in a command. Save it to a file with the Write tool first. If it must be in a command, escape the dollars: \"a\\$\\$(b\".",
+        "fixcode": "# save the text with the Write tool first\n# if it must be in a command\necho \"a\\$\\$(b\"",
+        "result": "echo 'a$(b' > y.txt ran; echo 'a$$(b' > x.txt was stopped by the removal check and x.txt was not created (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
+TRAPS.append({
+    "id": "h10",
+    "claude": True,
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\p.txt", 'Use the Bash tool once to run exactly this command and nothing else, then stop: printf ''%s'' ''a\\b'' > out.bin')
+Push-Location $d
+Get-Content "$d\p.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+if (-not (Test-Path "$d\out.bin")) { 'CANNOT CHECK (out.bin was not written: check that the Bash tool is available and allowed)' } else {
+$b = [IO.File]::ReadAllBytes("$d\out.bin")
+"asked for a, two backslashes, b -> bytes written: " + (($b | ForEach-Object { '{0:x2}' -f $_ }) -join ' ')
+if ($b.Length -eq 3) """ + YES + r"""
+}""",
+    "ja": {
+        "title": "Windows の Claude Code の Bash ツールで、\\\\（バックスラッシュ2つ）が \\ 1つになる",
+        "search": ["Claude Code Bash バックスラッシュ 消える", "Claude Code Windows backslash", "Claude Code ヒアドキュメント 壊れる", "Claude Code 正規表現 壊れる", "Git Bash バックスラッシュ 1つ"],
+        "symptom": "Claude Code に Bash ツールで書かせたスクリプトや正規表現で、\\\\ のはずの所が \\ 1つになっている。単引用符の中でも、引用符付きのヒアドキュメントの中でも起きる。エラーは出ず、壊れた中身のまま動く。",
+        "why": "Windows（Git for Windows）の Claude Code の Bash ツールは、渡されたコマンドの中の \\\\ を \\ 1つに変えてから実行する。モデルが送ったコマンドには2つ入っている（会話の記録で確かめられる）。4つは2つになり、1つは1つのまま（公式 issue #110308）。",
+        "fix": "バックスラッシュを含む本文（スクリプト・正規表現・Windows のパス）は、Bash のコマンドやヒアドキュメントに書かず、Write ツールでファイルに保存してから使う。Windows のパスは / 区切りで書く。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# 本文は Write ツールでファイルに保存し、コマンドではファイルを読むだけにする\npython fix.py",
+        "result": "printf '%s' 'a\\\\b' > out.bin で、out.bin は a \\ b の3バイトだった（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "On Windows, Claude Code's Bash tool turns \\\\ (two backslashes) into one",
+        "search": ["claude code bash backslash disappears windows", "claude code double backslash becomes single", "claude code heredoc backslash broken", "claude code regex backslash windows", "git bash backslash claude code"],
+        "symptom": "A script or regular expression that Claude Code wrote through the Bash tool has \\ where it should have \\\\. It happens inside single quotes and inside quoted heredocs. No error; the broken text just runs.",
+        "why": "On Windows (Git for Windows), Claude Code's Bash tool turns each \\\\ in the command into a single \\ before running it. The command the model sent has two (the transcript shows it). Four become two, a single one stays single (official issue #110308).",
+        "fix": "Do not put text with backslashes (scripts, regular expressions, Windows paths) in Bash commands or heredocs. Save it to a file with the Write tool first, and write Windows paths with forward slashes.",
+        "fixcode": "# save the text with the Write tool, and let the command only read the file\npython fix.py",
+        "result": "printf '%s' 'a\\\\b' > out.bin wrote the 3 bytes a \\ b (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
+TRAPS.append({
+    "id": "h12",
+    "claude": True,
+    "check": HEAD + r"""foreach ($v in @('1', '0')) {
+  $w = Join-Path $d "v$v"; New-Item -ItemType Directory "$w\sub" -Force | Out-Null
+  [IO.File]::WriteAllText("$w\s.json", '{"env":{"CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR":"VAL","CLAUDE_CODE_USE_POWERSHELL_TOOL":"1"}}'.Replace('VAL', $v))
+  $p = 'You must use the PowerShell tool (not Bash). Call 1: Set-Location sub . Call 2 (a separate PowerShell tool call): [IO.File]::WriteAllText("OUT", (Get-Location).Path) . Then stop.'.Replace('OUT', "$w\call2.txt")
+  Push-Location $w
+  $p | claude -p --settings s.json --allowedTools PowerShell | Out-Null
+  Pop-Location
+}
+$r1 = ''; $r0 = ''
+if (Test-Path "$d\v1\call2.txt") { $r1 = (Get-Content "$d\v1\call2.txt" -Raw).Trim() }
+if (Test-Path "$d\v0\call2.txt") { $r0 = (Get-Content "$d\v0\call2.txt" -Raw).Trim() }
+"second PowerShell call after cd sub: MAINTAIN=1 -> $r1 ; MAINTAIN=0 -> $r0"
+if ((-not $r0) -or (-not $r1)) { 'CANNOT CHECK (the PowerShell tool did not run: it needs a Claude Code version with the PowerShell tool)' } elseif (-not $r0.EndsWith('sub')) { 'CANNOT CHECK (even with MAINTAIN=0 the cd did not stay)' } elseif (-not $r1.EndsWith('sub')) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
+    "ja": {
+        "title": "Claude Code の PowerShell ツールで、cd したフォルダが次の呼び出しで元に戻る",
+        "search": ["Claude Code PowerShell ツール cd 戻る", "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR", "Claude Code PowerShell Set-Location 効かない", "Claude Code 作業フォルダ 戻る", "Working directory persists between commands"],
+        "symptom": "Claude Code の PowerShell ツールで Set-Location（cd）したのに、次の呼び出しでは最初のフォルダに戻っていて、ファイルが違う場所に書かれる。PowerShell ツールの説明には「作業フォルダは次のコマンドに引き継がれる」と書いてある。",
+        "why": "環境変数 CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 があると、Claude Code は呼び出しのたびに作業フォルダを最初のフォルダに戻す。Bash ツールの説明はこの設定に合わせて変わるが、PowerShell ツールの説明は「引き継がれる」のまま変わらないので、モデルは前の cd が効いている前提で次のコマンドを書く（公式 issue #111705）。",
+        "fix": "作業フォルダは呼び出しごとに指定する（絶対パスを使うか、同じ呼び出しの中で Set-Location -ErrorAction Stop してから実行する）。その設定が要らないなら外す。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "Set-Location -LiteralPath 'C:/work/sub' -ErrorAction Stop; ./run.ps1",
+        "result": "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 では2回目の呼び出しが最初のフォルダに戻り、0 では sub のままだった（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "Claude Code's PowerShell tool goes back to the start folder on the next call after cd",
+        "search": ["claude code powershell tool cd does not persist", "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR powershell", "claude code powershell set-location reset", "claude code working directory reset", "Working directory persists between commands"],
+        "symptom": "You ran Set-Location (cd) in Claude Code's PowerShell tool, but the next call is back in the start folder and writes files in the wrong place. The PowerShell tool's own description says the working directory persists between commands.",
+        "why": "With the environment variable CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1, Claude Code resets the working directory to the start folder on every call. The Bash tool's description changes to match; the PowerShell tool's description still says it persists, so the model writes the next command assuming the cd took effect (official issue #111705).",
+        "fix": "Name the working folder in every call (use absolute paths, or Set-Location -ErrorAction Stop in the same call before running). Remove the setting if you do not need it.",
+        "fixcode": "Set-Location -LiteralPath 'C:/work/sub' -ErrorAction Stop; ./run.ps1",
+        "result": "with CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1 the second call was back in the start folder; with 0 it stayed in sub (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
+TRAPS.append({
+    "id": "h11",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory "$d\sub" -Force | Out-Null
+$u = $d -replace '\\', '/'
+$p = 'Use the Bash tool exactly twice, one command per call. Call 1: cd "U/sub" && pwd > "U/p1.txt" . Call 2: pwd > "U/p2.txt" . Then stop.'.Replace('U', $u)
+Push-Location $d
+$p | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+if (-not (Test-Path "$d\p1.txt") -or -not (Test-Path "$d\p2.txt")) { 'CANNOT CHECK (the Bash tool did not run both calls: check that it is available and allowed)' } else {
+$p1 = (Get-Content "$d\p1.txt" -Raw).Trim(); $p2 = (Get-Content "$d\p2.txt" -Raw).Trim()
+"inside %TEMP%: same call after cd sub -> $p1 ; next call -> $p2"
+if (-not $p1.EndsWith('/sub')) { 'CANNOT CHECK (cd did not work even inside the same call)' } elseif (-not $p2.EndsWith('/sub')) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}""",
+    "ja": {
+        "title": "Windows の Claude Code の Bash ツールで、%TEMP% の下への cd が次の呼び出しで取り消される",
+        "search": ["Claude Code Shell cwd was reset", "Claude Code cd 戻る Temp", "Claude Code Bash cd 効かない", "Claude Code %TEMP% cd", "Claude Code 作業フォルダ 戻る"],
+        "symptom": "Bash ツールで %TEMP%（AppData\\Local\\Temp）の下のフォルダに cd したのに、次の呼び出しでは元のフォルダに戻っていて、「Shell cwd was reset to ...」と出る。同じ場所でも Temp 以外の隣のフォルダ（AppData\\Local\\Microsoft など）への cd は残る。",
+        "why": "Windows の Claude Code の Bash ツールは、呼び出しのあとの作業フォルダが %TEMP% の下だと、起動したフォルダに戻す（公式 issue #110213）。同じ呼び出しの中なら cd は効くので、1回目の呼び出しは正しく動き、2回目から黙って別の場所で動く。",
+        "fix": "作業フォルダは呼び出しごとに指定する（絶対パスを使うか、cd と実行を同じ呼び出しに入れる）。使い捨ての作業場所を %TEMP% の下に作るなら、毎回そのフォルダの絶対パスで書く。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "cd \"C:/Users/me/AppData/Local/Temp/work\" && ./run.sh   # cd と実行を同じ呼び出しに",
+        "result": "%TEMP% の下から起動して cd sub すると、同じ呼び出しでは sub、次の呼び出しでは起動したフォルダだった。AppData\\Local から起動したときの cd Microsoft は残った（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "On Windows, a cd into %TEMP% in Claude Code's Bash tool is undone on the next call",
+        "search": ["claude code Shell cwd was reset", "claude code cd temp reset windows", "claude code bash cd not persisting", "claude code %TEMP% working directory", "claude code working directory reset"],
+        "symptom": "You cd'd into a folder under %TEMP% (AppData\\Local\\Temp) in the Bash tool, but the next call is back in the start folder and prints Shell cwd was reset to .... A cd into a sibling folder outside Temp (AppData\\Local\\Microsoft, for example) sticks.",
+        "why": "On Windows, Claude Code's Bash tool sends the shell back to the start folder when the working directory after a call is under %TEMP% (official issue #110213). Inside the same call the cd works, so the first call behaves and later calls silently run somewhere else.",
+        "fix": "Name the working folder in every call (use absolute paths, or put the cd and the command in the same call). If you keep a scratch folder under %TEMP%, always use its absolute path.",
+        "fixcode": "cd \"C:/Users/me/AppData/Local/Temp/work\" && ./run.sh   # cd and run in the same call",
+        "result": "started under %TEMP%, after cd sub the same call was in sub and the next call was back in the start folder; started in AppData\\Local, cd Microsoft stuck (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:

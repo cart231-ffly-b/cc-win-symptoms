@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="You cd&#x27;d into a folder under %TEMP% (AppData\Local\Temp) in the Bash tool, but the next call is back in the start folder and prints Shell cwd was rese">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h11.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h11.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h11.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="You cd&#x27;d into a folder under %TEMP% (AppData\Local\Temp) in the Bash tool, but the next call is back in the start folder and prints Shell cwd was rese">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h11.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/h11.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">H11</p>
+<h1>On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call</h1>
+<h2>Symptom</h2>
+<p>You cd&#x27;d into a folder under %TEMP% (AppData\Local\Temp) in the Bash tool, but the next call is back in the start folder and prints Shell cwd was reset to .... A cd into a sibling folder outside Temp (AppData\Local\Microsoft, for example) sticks.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory &quot;$d\sub&quot; -Force | Out-Null
+$u = $d -replace &#x27;\\&#x27;, &#x27;/&#x27;
+$p = &#x27;Use the Bash tool exactly twice, one command per call. Call 1: cd &quot;U/sub&quot; &amp;&amp; pwd &gt; &quot;U/p1.txt&quot; . Call 2: pwd &gt; &quot;U/p2.txt&quot; . Then stop.&#x27;.Replace(&#x27;U&#x27;, $u)
+Push-Location $d
+$p | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+if (-not (Test-Path &quot;$d\p1.txt&quot;) -or -not (Test-Path &quot;$d\p2.txt&quot;)) { &#x27;CANNOT CHECK (the Bash tool did not run both calls: check that it is available and allowed)&#x27; } else {
+$p1 = (Get-Content &quot;$d\p1.txt&quot; -Raw).Trim(); $p2 = (Get-Content &quot;$d\p2.txt&quot; -Raw).Trim()
+&quot;inside %TEMP%: same call after cd sub -&gt; $p1 ; next call -&gt; $p2&quot;
+if (-not $p1.EndsWith(&#x27;/sub&#x27;)) { &#x27;CANNOT CHECK (cd did not work even inside the same call)&#x27; } elseif (-not $p2.EndsWith(&#x27;/sub&#x27;)) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
+<h2>Why it happens</h2>
+<p>On Windows, Claude Code&#x27;s Bash tool sends the shell back to the start folder when the working directory after a call is under %TEMP% (official issue #110213). Inside the same call the cd works, so the first call behaves and later calls silently run somewhere else.</p>
+<h2>Fix</h2>
+<p>Name the working folder in every call (use absolute paths, or put the cd and the command in the same call). If you keep a scratch folder under %TEMP%, always use its absolute path.</p>
+<pre><code>cd &quot;C:/Users/me/AppData/Local/Temp/work&quot; &amp;&amp; ./run.sh   # cd and run in the same call</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">started under %TEMP%, after cd sub the same call was in sub and the next call was back in the start folder; started in AppData\Local, cd Microsoft stuck (2026-11-24, Claude Code 2.1.330)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>claude code Shell cwd was reset</li><li>claude code cd temp reset windows</li><li>claude code bash cd not persisting</li><li>claude code %TEMP% working directory</li><li>claude code working directory reset</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li><li><a href="h04.html">A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</a></li><li><a href="h05.html">A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)</a></li><li><a href="h06.html">Writing through a Windows 8.3 short name makes Claude Code drop the original file name</a></li><li><a href="h09.html">A Claude Code Bash command containing $$( is stopped by the dangerous-removal check</a></li><li><a href="h10.html">On Windows, Claude Code&#x27;s Bash tool turns \\ (two backslashes) into one</a></li><li><a href="h12.html">Claude Code&#x27;s PowerShell tool goes back to the start folder on the next call after cd</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>
