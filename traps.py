@@ -563,6 +563,41 @@ if ((-not $c) -or $wf) { 'CANNOT CHECK (the quoted forward-slash hook did not bl
     },
 })
 
+TRAPS.append({
+    "id": "h06",
+    "claude": True,
+    "check": HEAD + r"""Set-Content -LiteralPath "$d\app.settings.json" -Value old
+$short = (cmd /c dir /x "$d" | Select-String 'app\.settings\.json' | ForEach-Object { ($_.Line -split '\s+') | Where-Object { $_ -match '~[0-9]' } } | Select-Object -First 1)
+if (-not $short) { 'CANNOT CHECK (no 8.3 short name on this drive: dir /x shows none, so this cannot happen here)' } else {
+"short name: $short"
+Push-Location $d
+"Use the Write tool once to overwrite the file $short in the current folder with the single line new. Use exactly that file name. Do not use any other tool. Do not retry." | claude -p --permission-mode bypassPermissions | Out-Null
+Pop-Location
+$long = Test-Path -LiteralPath "$d\app.settings.json"
+$names = (Get-ChildItem -LiteralPath $d -Force | ForEach-Object { $_.Name }) -join ', '
+"after the write: files = $names"
+if ((-not $long) -and ($names -match [regex]::Escape($short))) """ + YES + r"""
+}""",
+    "ja": {
+        "title": "Windows の短い名前（8.3）で Claude Code に Write・Edit させると、元のファイル名が消える",
+        "search": ["Claude Code ファイル名 変わる", "Claude Code 8.3 短い名前", "ENV~1 ファイル", "Claude Code Write ファイル 消えた", "bypassPermissions Windows"],
+        "symptom": "app.settings.json や credentials.json が消えて、APPSET~1.JSO や CREDEN~1.JSO という名前のファイルができている。中身は Claude が書いたとおり。ツールはふつうに成功と返していて、名前が変わったことは言っていない。",
+        "why": "Windows のファイルには、長い名前とは別に dir /x で見える短い名前（8.3 形式）が付いていることがある。同じファイルの別名だが、Claude Code の Write・Edit にこの短い名前を渡すと、長い名前のファイルが消え、短い名前そのもののファイルが作られる（公式 issue #110153）。acceptEdits の claude -p では止まったが、確認なしで書き込む bypassPermissions では起きる。",
+        "fix": "bypassPermissions は使い捨ての環境だけにする。普段の PC で使うなら、ファイル名の部分に ~数字 があるパスを拒否する PreToolUse フックを入れる（-File で呼び、onFailure: block も付ける）。",
+        "fixcode": "$p = [string]$j.tool_input.file_path\nif ((Split-Path $p -Leaf) -match '~[0-9]+') { [Console]::Error.WriteLine('blocked: 8.3 short name'); exit 2 }",
+        "result": "bypassPermissions で APPSET~1.JSO に Write すると app.settings.json が消え APPSET~1.JSO ができた。Read と Edit でも同じ。acceptEdits の claude -p では止まった。上のフックを入れると bypassPermissions でも止まった（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "Writing through a Windows 8.3 short name makes Claude Code drop the original file name",
+        "search": ["claude code file renamed short name", "claude code 8.3 short name write", "ENV~1 file created", "claude code write file disappeared windows", "bypassPermissions windows short name"],
+        "symptom": "app.settings.json or credentials.json is gone, and a file named APPSET~1.JSO or CREDEN~1.JSO is there instead, with the content Claude wrote. The tool reported success and never mentioned a rename.",
+        "why": "A Windows file can carry a second, short name (8.3 format) that dir /x shows. It is an alias for the same file, but when Claude Code's Write or Edit is given the short name, the long-named file is removed and a new file literally named with the short spelling is created (official issue #110153). It was refused in an acceptEdits claude -p run, but happens in bypassPermissions, which writes without asking.",
+        "fix": "Keep bypassPermissions to throwaway environments. If you use it on your own machine, add a PreToolUse hook that denies paths whose file-name part contains ~ followed by digits (call it with -File and add onFailure: block).",
+        "fixcode": "$p = [string]$j.tool_input.file_path\nif ((Split-Path $p -Leaf) -match '~[0-9]+') { [Console]::Error.WriteLine('blocked: 8.3 short name'); exit 2 }",
+        "result": "in bypassPermissions, a Write to APPSET~1.JSO removed app.settings.json and created APPSET~1.JSO; Read and Edit did the same; an acceptEdits claude -p run was refused; with the hook above, it was blocked even in bypassPermissions (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
