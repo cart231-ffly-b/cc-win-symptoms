@@ -524,6 +524,45 @@ if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks o
     },
 })
 
+TRAPS.append({
+    "id": "h05",
+    "claude": True,
+    "check": HEAD + r"""$cmd = (@('@echo off', 'more > nul', 'echo x> "MARK"', 'exit /b 2') -join "`r`n").Replace('MARK', "$d\called.txt")
+[IO.File]::WriteAllText("$d\deny.cmd", $cmd + "`r`n")
+$fwd = '\"' + ($d -replace '\\', '/') + '/deny.cmd\"'
+$back = ($d + '\deny.cmd') -replace '\\', '\\'
+foreach ($k in @('fwd', 'back')) {
+  $w = Join-Path $d $k; New-Item -ItemType Directory $w -Force | Out-Null
+  $hook = if ($k -eq 'fwd') { $fwd } else { $back }
+  [IO.File]::WriteAllText("$w\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
+  Push-Location $w
+  'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+  Pop-Location
+  if ($k -eq 'fwd') { $c = Test-Path "$d\called.txt" }
+}
+$wf = Test-Path "$d\fwd\written.txt"; $wb = Test-Path "$d\back\written.txt"
+"same deny.cmd: quoted C:/.../deny.cmd -> hook called=$c, written=$wf; unquoted C:\...\deny.cmd -> written=$wb"
+if ((-not $c) -or $wf) { 'CANNOT CHECK (the quoted forward-slash hook did not block: check Git for Windows, disableAllHooks or your settings)' } elseif ($wb) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
+    "ja": {
+        "title": "Claude Code のフックのパスを \\ で書くと、フックが起動せず書き込みが通る（終了コード 127）",
+        "search": ["Claude Code フック 動かない パス", "Claude Code hook 127", "PreToolUse command not found", "Claude Code フック バックスラッシュ", "フック 空白 パス 動かない"],
+        "symptom": "書き込みを拒否するフックを入れたのに、ファイルが書かれた。フックのスクリプトは、手で動かすと確かに拒否する。設定の command に C:\\...\\deny.cmd のような \\ 区切りのパスか、空白入りのパスを囲まずに書いている。エラーも警告も出ない。",
+        "why": "Git for Windows が入った Windows では、Claude Code はフックの command を Git Bash のコマンド行として動かす。bash にとって \\ は「次の1文字をそのまま使う」記号なので、C:\\Users\\me\\deny.cmd は C:Usersmedeny.cmd という無いコマンドになる。空白入りのパスは空白で切られる。どちらも終了コード 127（コマンドが見つからない）で、PreToolUse では 0 と 2 以外は「止めないエラー」なので、書き込みは進む。claude -p の結果には何も出ず、--debug のログに status 127 が残る（公式 issue #109103 と同じ）。",
+        "fix": "パスは / 区切りで書き、全体を \" で囲む（JSON の中では \\\"）。関所のフックには \"onFailure\": \"block\" も付ける（起動できなかったときも止まる。Claude Code 2.1.295 以降）。",
+        "fixcode": "\"command\": \"\\\"C:/Users/me/hooks/deny.cmd\\\"\",\n\"onFailure\": \"block\"",
+        "result": "同じ deny.cmd で、/ 区切りは止まり、\\ 区切りと、空白入りを囲まない書き方は書き込まれた（debug に status 127）。onFailure: block を足すと止まった（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)",
+        "search": ["claude code hook not running windows path", "claude code hook 127", "PreToolUse command not found windows", "claude code hook backslash path", "claude code hook path with spaces"],
+        "symptom": "You have a hook that denies writes, yet the file was written. Run by hand, the hook script does deny. The command in your settings is a backslash path such as C:\\...\\deny.cmd, or a path with a space and no quotes. No error, no warning.",
+        "why": "With Git for Windows installed, Claude Code runs a hook's command as a Git Bash command line. To bash, \\ escapes the next character, so C:\\Users\\me\\deny.cmd becomes C:Usersmedeny.cmd, a command that does not exist. An unquoted path with a space is split at the space. Both exit with 127 (command not found), and for PreToolUse anything other than 0 or 2 is a non-blocking error, so the write proceeds. Nothing shows in the claude -p result; the --debug log records status 127 (official issue #109103).",
+        "fix": "Write the path with forward slashes and wrap it in quotes (\\\" inside JSON). Give gate hooks \"onFailure\": \"block\" too, so a hook that cannot start also blocks (Claude Code 2.1.295 or later).",
+        "fixcode": "\"command\": \"\\\"C:/Users/me/hooks/deny.cmd\\\"\",\n\"onFailure\": \"block\"",
+        "result": "with the same deny.cmd, the forward-slash path blocked; the backslash path and the unquoted path with a space let the write through (status 127 in the debug log); adding onFailure: block blocked it (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127) | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="You have a hook that denies writes, yet the file was written. Run by hand, the hook script does deny. The command in your settings is a backslash path">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h05.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h05.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h05.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127) | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="You have a hook that denies writes, yet the file was written. Run by hand, the hook script does deny. The command in your settings is a backslash path">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h05.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/h05.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">H05</p>
+<h1>A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)</h1>
+<h2>Symptom</h2>
+<p>You have a hook that denies writes, yet the file was written. Run by hand, the hook script does deny. The command in your settings is a backslash path such as C:\...\deny.cmd, or a path with a space and no quotes. No error, no warning.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$cmd = (@(&#x27;@echo off&#x27;, &#x27;more &gt; nul&#x27;, &#x27;echo x&gt; &quot;MARK&quot;&#x27;, &#x27;exit /b 2&#x27;) -join &quot;`r`n&quot;).Replace(&#x27;MARK&#x27;, &quot;$d\called.txt&quot;)
+[IO.File]::WriteAllText(&quot;$d\deny.cmd&quot;, $cmd + &quot;`r`n&quot;)
+$fwd = &#x27;\&quot;&#x27; + ($d -replace &#x27;\\&#x27;, &#x27;/&#x27;) + &#x27;/deny.cmd\&quot;&#x27;
+$back = ($d + &#x27;\deny.cmd&#x27;) -replace &#x27;\\&#x27;, &#x27;\\&#x27;
+foreach ($k in @(&#x27;fwd&#x27;, &#x27;back&#x27;)) {
+  $w = Join-Path $d $k; New-Item -ItemType Directory $w -Force | Out-Null
+  $hook = if ($k -eq &#x27;fwd&#x27;) { $fwd } else { $back }
+  [IO.File]::WriteAllText(&quot;$w\s.json&quot;, &#x27;{&quot;hooks&quot;:{&quot;PreToolUse&quot;:[{&quot;matcher&quot;:&quot;Write|Edit&quot;,&quot;hooks&quot;:[{&quot;type&quot;:&quot;command&quot;,&quot;command&quot;:&quot;HOOK&quot;}]}]}}&#x27;.Replace(&#x27;HOOK&#x27;, $hook))
+  Push-Location $w
+  &#x27;Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.&#x27; | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+  Pop-Location
+  if ($k -eq &#x27;fwd&#x27;) { $c = Test-Path &quot;$d\called.txt&quot; }
+}
+$wf = Test-Path &quot;$d\fwd\written.txt&quot;; $wb = Test-Path &quot;$d\back\written.txt&quot;
+&quot;same deny.cmd: quoted C:/.../deny.cmd -&gt; hook called=$c, written=$wf; unquoted C:\...\deny.cmd -&gt; written=$wb&quot;
+if ((-not $c) -or $wf) { &#x27;CANNOT CHECK (the quoted forward-slash hook did not block: check Git for Windows, disableAllHooks or your settings)&#x27; } elseif ($wb) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+<h2>Why it happens</h2>
+<p>With Git for Windows installed, Claude Code runs a hook&#x27;s command as a Git Bash command line. To bash, \ escapes the next character, so C:\Users\me\deny.cmd becomes C:Usersmedeny.cmd, a command that does not exist. An unquoted path with a space is split at the space. Both exit with 127 (command not found), and for PreToolUse anything other than 0 or 2 is a non-blocking error, so the write proceeds. Nothing shows in the claude -p result; the --debug log records status 127 (official issue #109103).</p>
+<h2>Fix</h2>
+<p>Write the path with forward slashes and wrap it in quotes (\&quot; inside JSON). Give gate hooks &quot;onFailure&quot;: &quot;block&quot; too, so a hook that cannot start also blocks (Claude Code 2.1.295 or later).</p>
+<pre><code>&quot;command&quot;: &quot;\&quot;C:/Users/me/hooks/deny.cmd\&quot;&quot;,
+&quot;onFailure&quot;: &quot;block&quot;</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">with the same deny.cmd, the forward-slash path blocked; the backslash path and the unquoted path with a space let the write through (status 127 in the debug log); adding onFailure: block blocked it (2026-11-24, Claude Code 2.1.330)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>claude code hook not running windows path</li><li>claude code hook 127</li><li>PreToolUse command not found windows</li><li>claude code hook backslash path</li><li>claude code hook path with spaces</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li><li><a href="h04.html">A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>
