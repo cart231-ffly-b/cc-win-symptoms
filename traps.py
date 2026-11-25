@@ -834,6 +834,47 @@ if (-not $ha) { 'CANNOT CHECK (even without --agent there was no structured_outp
     },
 })
 
+TRAPS.append({
+    "id": "h15",
+    "claude": True,
+    "check": HEAD + r"""$res = @{}
+foreach ($case in 'partial', 'plain') {
+    $t = Join-Path $d $case
+    New-Item -ItemType Directory -Force (Join-Path $t 'sub') | Out-Null
+    $lines = 1..30 | ForEach-Object { "Rule $_`: keep files tidy." }
+    $lines += 'MARKER: the code word for this folder is PELICAN.'
+    [IO.File]::WriteAllText((Join-Path $t 'sub\CLAUDE.md'), ($lines -join "`n") + "`n")
+    [IO.File]::WriteAllText((Join-Path $t 'sub\a.txt'), "hello`n")
+    $ask = 'Without reading any file again, reply with the code word for the sub folder if any instructions you have contain one, otherwise reply UNKNOWN.'
+    if ($case -eq 'partial') { $p = "Do exactly this: 1. Use the Read tool on sub/CLAUDE.md with offset 1 and limit 1. 2. Use the Read tool on sub/a.txt. 3. $ask" }
+    else { $p = "Do exactly this: 1. Use the Read tool on sub/a.txt. 2. $ask" }
+    Push-Location $t
+    $out = $p | claude -p --allowedTools Read --output-format json | Out-String
+    Pop-Location
+    $res[$case] = $out -match 'PELICAN'
+}
+"knows the code word: after a partial Read first = $($res['partial']); without it = $($res['plain'])"
+if (-not $res['plain']) { 'CANNOT CHECK (even without the partial Read the code word was not known: check that claude -p works and is logged in)' } elseif (-not $res['partial']) """ + YES,
+    "ja": {
+        "title": "サブフォルダの CLAUDE.md を一部だけ Read すると、残りが黙って読み込まれなくなる",
+        "search": ["サブフォルダ CLAUDE.md 読み込まれない", "Claude Code nested CLAUDE.md 効かない", "CLAUDE.md offset limit", "Claude Code CLAUDE.md 一部だけ", "nested_memory"],
+        "symptom": "サブフォルダの CLAUDE.md に書いた決まりを、Claude がそのフォルダで作業するときに守らない。会話の中で、その CLAUDE.md を数行だけ読んでいた。エラーも警告も出ない。",
+        "why": "サブフォルダの CLAUDE.md は、そのフォルダのほかのファイルを読んだときに読み込まれる（公式の説明書）。ところが、先にその CLAUDE.md を Read で offset・limit を付けて一部だけ読んでいると、全体の読み込みが起きない（公式 issue #111719）。",
+        "fix": "親の CLAUDE.md に「サブフォルダの CLAUDE.md は、読むなら全体を読む。offset や limit を付けない」と書く。サブフォルダの CLAUDE.md は短くし、大事な決まりを先頭に置く。CLAUDE.md の型は本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# 親の CLAUDE.md に1行\nサブフォルダの CLAUDE.md は、読むなら全体を読む。offset や limit を付けて一部だけ読まない。",
+        "result": "31行の sub/CLAUDE.md の最後の行に合言葉を書いた。sub/a.txt を読むだけなら合言葉を知っていた（会話の記録に nested_memory が1件）。先に CLAUDE.md を offset 1・limit 1 で読むと、sub/a.txt を読んでも UNKNOWN（nested_memory 0件）（2026-11-25、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading",
+        "search": ["claude code nested CLAUDE.md not loaded", "subdirectory CLAUDE.md ignored", "CLAUDE.md offset limit read", "claude code CLAUDE.md partially read", "nested_memory missing"],
+        "symptom": "Claude ignores rules from a subdirectory CLAUDE.md while working in that folder. Earlier in the session it read a few lines of that CLAUDE.md. No error, no warning.",
+        "why": "A subdirectory CLAUDE.md loads when Claude reads another file in that folder (official docs). If the session first read that CLAUDE.md with offset/limit, the full load never happens (official issue #111719).",
+        "fix": "Write in the root CLAUDE.md: read a subdirectory CLAUDE.md in full or not at all, never with offset or limit. Keep subdirectory CLAUDE.md files short with the important rules first.",
+        "fixcode": "# one line in the root CLAUDE.md\nRead a subdirectory CLAUDE.md in full or not at all; never with offset or limit.",
+        "result": "with the code word on the last line of a 31-line sub/CLAUDE.md, reading only sub/a.txt gave the code word (1 nested_memory entry in the transcript); reading the CLAUDE.md with offset 1, limit 1 first gave UNKNOWN (0 entries) (2026-11-25, Claude Code 2.1.330)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
