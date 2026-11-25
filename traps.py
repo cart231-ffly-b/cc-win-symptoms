@@ -1001,6 +1001,59 @@ if (-not $ok[7000]) { 'CANNOT CHECK (even the 7000-character command did not run
     },
 })
 
+TRAPS.append({
+    "id": "h21",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\.claude" | Out-Null
+$settings = @'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/missing-script.ps1"],
+            "onFailure": "block",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+'@
+[IO.File]::WriteAllText("$d\.claude\settings.json", $settings)
+Push-Location $d
+'Use the Write tool once to create out.txt with the text hi. Do not retry. Then reply done.' | claude -p --allowedTools Write | Out-Null
+Pop-Location
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$d\.claude\hooks\missing-script.ps1" 2>$null | Out-Null
+$code = $LASTEXITCODE
+$w = Test-Path "$d\out.txt"
+"exit code of powershell -File <missing .ps1>: $code; out.txt written despite onFailure block: $w"
+if ($w) """ + YES,
+    "ja": {
+        "title": "フックの .ps1 が見つからないと、onFailure: block でも書き込みが通る",
+        "search": ["onFailure block 効かない", "Claude Code フック ps1 見つからない", "0xFFFD0000", "-196608 PowerShell", "Claude Code hook onFailure block powershell -File"],
+        "symptom": "書き込みを止めるフックを powershell.exe -File <スクリプト> で呼び、onFailure: block も付けていたのに、スクリプトを移したあとから書き込みが止まらない。エラーも出ない。",
+        "why": "-File に渡した .ps1 が無いと、Windows PowerShell 5.1 は終了コード 0xFFFD0000（-196608）で終わる。Claude Code はこれを成功として扱い、onFailure: block が効かない（公式 issue #100891）。実行ファイルが無い・時間切れ・exit 1 なら止まる（issue による）。",
+        "fix": "フックのコマンドの中でスクリプトがあるかを確かめ、無ければ exit 1 で終わらせる。最後に exit $LASTEXITCODE を書けば、スクリプトの exit 2 もそのまま返る。安全装置の作り方は本の5章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "\"command\": \"powershell.exe\",\n\"args\": [\"-NoProfile\", \"-ExecutionPolicy\", \"Bypass\", \"-Command\", \"$s = 'C:/hooks/guard.ps1'; if (-not (Test-Path -LiteralPath $s)) { exit 1 }; & $s; exit $LASTEXITCODE\"],\n\"onFailure\": \"block\"",
+        "result": "-File の .ps1 を置かずに Write させると、out.txt ができ、デバッグの記録は success だった。直接流した終了コードは -196608。上の形にすると止まった（2026-11-25、Claude Code 2.1.330、Windows PowerShell 5.1）",
+    },
+    "en": {
+        "title": "If a hook's .ps1 file is missing, writes go through even with onFailure: block",
+        "search": ["onFailure block not blocking", "claude code hook ps1 missing", "0xFFFD0000", "-196608 powershell", "claude code hook onFailure block powershell -File"],
+        "symptom": "A hook that blocks writes, called as powershell.exe -File <script> with onFailure: block, stops blocking after the script is moved or renamed. No error.",
+        "why": "When the .ps1 passed to -File does not exist, Windows PowerShell 5.1 exits with 0xFFFD0000 (-196608). Claude Code treats that as success, so onFailure: block does not apply (official issue #100891). A missing executable, a timeout or exit 1 do block, per the issue.",
+        "fix": "Check inside the hook command that the script exists and exit 1 if not. End with exit $LASTEXITCODE so a deny (exit 2) from the script still comes back as 2.",
+        "fixcode": "\"command\": \"powershell.exe\",\n\"args\": [\"-NoProfile\", \"-ExecutionPolicy\", \"Bypass\", \"-Command\", \"$s = 'C:/hooks/guard.ps1'; if (-not (Test-Path -LiteralPath $s)) { exit 1 }; & $s; exit $LASTEXITCODE\"],\n\"onFailure\": \"block\"",
+        "result": "with the -File script left out, the Write went through (out.txt created) and the debug log said success; the same command run directly exited -196608; with the wrapper above, the Write was blocked (2026-11-25, Claude Code 2.1.330, Windows PowerShell 5.1)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
