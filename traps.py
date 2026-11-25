@@ -1086,6 +1086,45 @@ if ($body -notmatch 'ORANGE') { 'CANNOT CHECK (the Edit did not happen: check th
     },
 })
 
+TRAPS.append({
+    "id": "h23",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\.claude\hooks" | Out-Null
+Push-Location $d; git init -q 2>$null; Pop-Location
+$sh = @'
+f=$(python -c "import sys,json; print(json.load(sys.stdin)['tool_input'].get('file_path',''))")
+printf 'PWD=%s\nfile_path=%s\n' "$PWD" "$f" > seen.txt
+case "$f" in "$PWD"/*) exit 0;; *) echo "BLOCKED: file outside the project" >&2; exit 2;; esac
+'@
+[IO.File]::WriteAllText("$d\.claude\hooks\guard.sh", $sh.Replace("`r`n", "`n"))
+[IO.File]::WriteAllText("$d\.claude\settings.json", '{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"bash .claude/hooks/guard.sh"}]}]}}')
+Push-Location $d
+'Use the Write tool once to create out.txt in the current folder with the text hi. Do not retry. Then reply done.' | claude -p --allowedTools Write | Out-Null
+Pop-Location
+if (Test-Path "$d\seen.txt") { Get-Content "$d\seen.txt" }
+$w = Test-Path "$d\out.txt"
+"write inside the project went through: $w"
+if (-not (Test-Path "$d\seen.txt")) { 'CANNOT CHECK (the hook did not run: check that python, git and Git for Windows bash are installed)' } elseif (-not $w) """ + YES,
+    "ja": {
+        "title": "Git Bash のフックで $PWD と file_path を比べると、Windows ではプロジェクトの中まで「外」になる",
+        "search": ["Claude Code フック PWD file_path", "Claude Code hook outside the project Windows", "フック 全部 BLOCKED", "cygpath フック", "Claude Code bash hook path Windows"],
+        "symptom": "Linux で動いていた「プロジェクトの外には書かせない」bash のフックが、Windows では中への書き込みまで全部止める。.claude/settings.json を直そうとしても止められる。",
+        "why": "フックに届く tool_input.file_path は C:\\... の Windows の形。Git Bash の $PWD は /c/...・/tmp/...・C:/... の形で、文字のまま比べると先頭が一致しない（公式 issue #94256）。止める場所を書いた守りなら、逆に何も止めない。",
+        "fix": "比べる両方を cygpath -u でそろえてから比べる。file_path だけでは足りない（$PWD が C:/... の形で来ることがある）。安全装置を Python で書き realpath でそろえる形は本の5章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "u() { cygpath -u \"$1\" 2>/dev/null || printf '%s' \"$1\"; }\nf=$(u \"$f\"); p=$(u \"$PWD\")\ncase \"$f\" in \"$p\"/*) exit 0;; *) echo \"BLOCKED\" >&2; exit 2;; esac",
+        "result": "file_path は C:\\...\\out.txt、$PWD は回によって /tmp/... か C:/... の形で、プロジェクトの中への Write が止まった。両方を cygpath -u でそろえると、中は通り隣のフォルダは止まった（2026-11-25、Claude Code 2.1.330、Git for Windows）",
+    },
+    "en": {
+        "title": "A Git Bash hook that compares $PWD with file_path treats even files inside the project as outside on Windows",
+        "search": ["claude code hook PWD file_path windows", "claude code hook outside the project windows", "hook blocks every write windows", "cygpath claude code hook", "claude code bash hook path format"],
+        "symptom": "A bash hook that keeps writes inside the project works on Linux but on Windows blocks every write, including writes inside the project and edits to .claude/settings.json.",
+        "why": "tool_input.file_path arrives in Windows form (C:\\...). Git Bash's $PWD is /c/..., /tmp/... or C:/..., so a plain string prefix never matches (official issue #94256). A deny-list hook written the same way blocks nothing.",
+        "fix": "Normalize both sides with cygpath -u before comparing. Normalizing only file_path is not enough, because $PWD can come as C:/....",
+        "fixcode": "u() { cygpath -u \"$1\" 2>/dev/null || printf '%s' \"$1\"; }\nf=$(u \"$f\"); p=$(u \"$PWD\")\ncase \"$f\" in \"$p\"/*) exit 0;; *) echo \"BLOCKED\" >&2; exit 2;; esac",
+        "result": "file_path was C:\\...\\out.txt and $PWD was /tmp/... or C:/... depending on the run, and a Write inside the project was blocked; with both sides passed through cygpath -u, a Write inside went through and a Write to a sibling folder was blocked (2026-11-25, Claude Code 2.1.330, Git for Windows)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
