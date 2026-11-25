@@ -1160,6 +1160,37 @@ if ($d.Substring(0, 2) -ne 'C:') { 'CANNOT CHECK (TEMP is not on drive C:)' } el
     },
 })
 
+TRAPS.append({
+    "id": "h20",
+    "claude": True,
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\s.json", '{"env":{"CLAUDE_CODE_USE_POWERSHELL_TOOL":"1"}}')
+Push-Location $d
+$out = "You must use the PowerShell tool (not Bash). Run exactly the PowerShell command in the next line once, then stop.`ncmd /c exit 3; 'done'" | claude -p --settings s.json --allowedTools PowerShell --output-format stream-json --verbose | Out-String
+Pop-Location
+$ran = $out -match 'done'
+$err = $out -match '"is_error":true'
+"the PowerShell tool ran the command: $ran; the call was reported as an error: $err"
+if (-not $ran) { 'CANNOT CHECK (the PowerShell tool did not run: check that claude -p can use it)' } elseif ($err -and ($out -match 'Exit code 3')) """ + YES,
+    "ja": {
+        "title": "Claude Code の PowerShell ツールは、途中のコマンドの終了コードで、成功を「失敗」と返す",
+        "search": ["Claude Code PowerShell Exit code 1 robocopy", "Claude Code PowerShell ツール 失敗 成功してるのに", "LASTEXITCODE Claude Code", "Claude Code PowerShell tool exit code wrong", "robocopy exit code 1 Claude Code"],
+        "symptom": "Claude Code が PowerShell ツールで robocopy などを動かすと、コピーはできているのに Exit code 1 の失敗として返り、Claude がやり直したり、コマンドを書き換えたりする。最後の文は成功している。",
+        "why": "PowerShell では、外のプログラムの終了コードが $LASTEXITCODE に残る。PowerShell ツールは、最後に残った $LASTEXITCODE を呼び出し全体の結果として返す（公式 issue #97589）。ふつうの powershell -Command や -File では、同じコマンドの終了コードは 0 になる。robocopy は成功でも 1〜7 を返す。",
+        "fix": "成功でも 0 以外を返すコマンド（robocopy・findstr・git diff --quiet など）のあとは、終わりに exit 0 を付け、終了コードは文字で出す。本当の失敗も失敗扱いにならなくなるので、出した exit= の行を読ませる。終了コードの穴は本の3章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にもある。",
+        "fixcode": "robocopy src dst a.txt | Out-Null; $rc = $LASTEXITCODE; if ($rc) { \"exit=$rc\" }; exit 0",
+        "result": "PowerShell ツールで cmd /c exit 3; 'done' は done まで動いたのに is_error=true・Exit code 3。robocopy で1つコピーしても Exit code 1 の失敗（コピーはできていた）。; exit 0 を足すと失敗にならない。ふつうの powershell -Command と -File では 0（2026-11-25、Claude Code 2.1.330、Windows PowerShell 5.1）",
+    },
+    "en": {
+        "title": "Claude Code's PowerShell tool reports success as failure because of an earlier command's exit code",
+        "search": ["claude code powershell exit code 1 robocopy", "claude code powershell tool reports failure but succeeded", "LASTEXITCODE claude code powershell tool", "claude code powershell tool exit code wrong", "robocopy exit code 1 claude code"],
+        "symptom": "When Claude Code runs robocopy or similar in the PowerShell tool, the copy works but the call comes back as a failure with Exit code 1, and Claude retries or rewrites the command. The last statement succeeded.",
+        "why": "In PowerShell an external program's exit code stays in $LASTEXITCODE. The PowerShell tool returns whatever $LASTEXITCODE holds at the end as the result of the whole call (official issue #97589). Plain powershell -Command or -File gives 0 for the same command. robocopy returns 1-7 on success.",
+        "fix": "After commands that return non-zero on success (robocopy, findstr, git diff --quiet), end with exit 0 and print the exit code as text. Real failures are then not flagged either, so have Claude read the exit= line.",
+        "fixcode": "robocopy src dst a.txt | Out-Null; $rc = $LASTEXITCODE; if ($rc) { \"exit=$rc\" }; exit 0",
+        "result": "in the PowerShell tool, cmd /c exit 3; 'done' printed done but came back as is_error=true, Exit code 3; copying one file with robocopy came back as Exit code 1 although the copy worked; adding ; exit 0 removed the error; plain powershell -Command and -File gave 0 (2026-11-25, Claude Code 2.1.330, Windows PowerShell 5.1)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
