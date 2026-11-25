@@ -61,10 +61,10 @@ if ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></p
 <h2>直し方</h2>
 <p>フックのコマンドの中でスクリプトがあるかを確かめ、無ければ exit 1 で終わらせる。最後に exit $LASTEXITCODE を書けば、スクリプトの exit 2 もそのまま返る。安全装置の作り方は本の5章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。</p>
 <pre><code>&quot;command&quot;: &quot;powershell.exe&quot;,
-&quot;args&quot;: [&quot;-NoProfile&quot;, &quot;-ExecutionPolicy&quot;, &quot;Bypass&quot;, &quot;-Command&quot;, &quot;$s = &#x27;C:/hooks/guard.ps1&#x27;; if (-not (Test-Path -LiteralPath $s)) { exit 1 }; &amp; $s; exit $LASTEXITCODE&quot;],
+&quot;args&quot;: [&quot;-NoProfile&quot;, &quot;-ExecutionPolicy&quot;, &quot;Bypass&quot;, &quot;-Command&quot;, &quot;$s = &#x27;C:/hooks/guard.ps1&#x27;; if (-not (Test-Path -LiteralPath $s -PathType Leaf)) { exit 1 }; $global:LASTEXITCODE = 0; &amp; $s; if (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE } else { exit 1 } }; exit $LASTEXITCODE&quot;],
 &quot;onFailure&quot;: &quot;block&quot;</code></pre>
 <h2>作者の PC での結果</h2>
-<p class="result">-File の .ps1 を置かずに Write させると、out.txt ができ、デバッグの記録は success だった。直接流した終了コードは -196608。上の形にすると止まった（2026-11-25、Claude Code 2.1.330、Windows PowerShell 5.1）</p>
+<p class="result">-File の .ps1 を置かずに Write させると、out.txt ができ、デバッグの記録は success だった。直接流した終了コードは -196608。上の形にすると、無い・exit 2・構文の誤り・throw の4通りで止まり、exit 0 は通った（2026-11-25、Claude Code 2.1.330、Windows PowerShell 5.1）</p>
 <p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>
 <h2>こんな言葉で探した人へ</h2>
 <ul class="tags"><li>onFailure block 効かない</li><li>Claude Code フック ps1 見つからない</li><li>0xFFFD0000</li><li>-196608 PowerShell</li><li>Claude Code hook onFailure block powershell -File</li></ul>
