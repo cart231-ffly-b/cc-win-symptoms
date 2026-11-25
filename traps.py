@@ -1221,6 +1221,40 @@ if ($b.Length -eq 12) { 'CANNOT CHECK (the Edit did not happen: check that claud
     },
 })
 
+TRAPS.append({
+    "id": "h24",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\a\b\sub" | Out-Null
+[IO.File]::WriteAllText("$d\a\b\sub\SKILL.md", "markerterm`n")
+Push-Location $d
+$found = @()
+foreach ($g in '**/SKILL.md', '*/SKILL.md') {
+    $out = "Use the Grep tool exactly once with pattern set to markerterm, path set to exactly $d\a\b , glob set to exactly $g , and output_mode files_with_matches. Use no other tools. Then stop." | claude -p --allowedTools Grep --output-format stream-json --verbose | Out-String
+    $found += ($out -match 'Found 1 file')
+}
+Pop-Location
+"glob **/SKILL.md found the file: $($found[0]); glob */SKILL.md found the file: $($found[1])"
+if (-not $found[0]) { 'CANNOT CHECK (even **/SKILL.md found nothing: check that claude -p can use Grep)' } elseif (-not $found[1]) """ + YES,
+    "ja": {
+        "title": "Claude Code の Grep は、作業フォルダの下を探すとき、glob の */ が「見つからない」になる",
+        "search": ["Claude Code Grep No files found あるのに", "Claude Code Grep glob 見つからない", "Claude Code Grep glob */ path", "claude code grep glob relative working directory", "Claude Code 検索 見つからない ファイルはある"],
+        "symptom": "Claude Code が Grep で探して No files found と返し、「そのファイルはありません」と判断する。実際にはファイルがある。探す範囲（path）を作業フォルダの下にして、glob に */ を使っていた。",
+        "why": "Grep の glob は、path からではなく作業フォルダからの相対パスで照らし合わされる（公式 issue #104991）。path が a\\b でも sub\\SKILL.md は a/b/sub/SKILL.md として照らされるので、1段だけの */SKILL.md には当たらない。**/ はどの深さにも当たる。",
+        "fix": "glob は **/ で書く。CLAUDE.md にもそう書き、No files found のときは glob を外して探し直させる。CLAUDE.md の型は本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# CLAUDE.md\n- Grep の glob は作業フォルダからの相対で照らされる。*/ ではなく **/ で書く\n- No files found のときは、glob を外してもう一度探す",
+        "result": "作業フォルダの下の a\\b を path にした Grep で、glob */SKILL.md は No files found、**/SKILL.md と a/b/*/SKILL.md は a\\b\\sub\\SKILL.md を見つけた（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "Claude Code's Grep returns No files found for a */ glob when searching below the working folder",
+        "search": ["claude code grep no files found but file exists", "claude code grep glob not matching", "claude code grep glob path relative", "claude code grep glob relative to working directory", "claude code grep one level glob"],
+        "symptom": "Claude Code searches with Grep, gets No files found, and concludes the file does not exist, although it does. The search path was below the working folder and the glob used */.",
+        "why": "Grep matches the glob against the path relative to the working folder, not relative to the path argument (official issue #104991). With path a\\b, sub\\SKILL.md is matched as a/b/sub/SKILL.md, so a one-level */SKILL.md does not match. **/ matches at any depth.",
+        "fix": "Write globs with **/. Say so in CLAUDE.md, and have Claude search again without the glob when it gets No files found.",
+        "fixcode": "# CLAUDE.md\n- Grep globs are matched relative to the working folder. Use **/ instead of */\n- On No files found, search again without the glob",
+        "result": "with path a\\b below the working folder, glob */SKILL.md gave No files found, while **/SKILL.md and a/b/*/SKILL.md found a\\b\\sub\\SKILL.md (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
