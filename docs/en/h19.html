@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too) | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="You started Claude Code in a folder under a junction made with mklink /J, but the working folder Claude reports, and the cwd and file_path your hooks ">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h19.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h19.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h19.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too) | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="You started Claude Code in a folder under a junction made with mklink /J, but the working folder Claude reports, and the cwd and file_path your hooks ">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h19.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/h19.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">H19</p>
+<h1>Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)</h1>
+<h2>Symptom</h2>
+<p>You started Claude Code in a folder under a junction made with mklink /J, but the working folder Claude reports, and the cwd and file_path your hooks receive, are the real path behind the junction. A hook whose allowed paths use the launch spelling no longer matches.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$real = Join-Path $d &#x27;real&#x27;
+$link = Join-Path $d &#x27;link&#x27;
+New-Item -ItemType Directory -Force &quot;$real\repo&quot; | Out-Null
+cmd /c mklink /J &quot;$link&quot; &quot;$real&quot; | Out-Null
+git -C &quot;$real\repo&quot; init -q 2&gt;$null
+if (-not (Test-Path &quot;$link\repo&quot;)) { &#x27;CANNOT CHECK (could not create the junction with mklink /J)&#x27; } else {
+Push-Location &quot;$link\repo&quot;
+$init = &#x27;reply ok&#x27; | claude -p --model haiku --output-format stream-json --verbose --max-turns 1 | Where-Object { $_ -match &#x27;&quot;subtype&quot;:&quot;init&quot;&#x27; } | Select-Object -First 1
+Pop-Location
+$cwd = [regex]::Match([string]$init, &#x27;&quot;cwd&quot;:&quot;([^&quot;]+)&quot;&#x27;).Groups[1].Value.Replace(&#x27;\\&#x27;, &#x27;\&#x27;)
+&quot;launched in: $link\repo&quot;
+&quot;init cwd   : $cwd&quot;
+if (-not $cwd) { &#x27;CANNOT CHECK (no init line from claude -p: check that claude -p works and is logged in)&#x27; } elseif ($cwd -like &#x27;*\real\repo&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
+<h2>Why it happens</h2>
+<p>Claude Code follows the junction in the starting folder and uses the real path as its working folder (official issue #106304; per the issue, 2.1.312 and earlier kept the launch spelling). The transcript folder is named after the real path too.</p>
+<h2>Fix</h2>
+<p>In hooks, resolve both sides to the real path before comparing (os.path.realpath in Python), and write allowed paths with the real path.</p>
+<pre><code>import os
+ok = os.path.normcase(os.path.realpath(target)).startswith(os.path.normcase(os.path.realpath(root)) + os.sep)</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">started in link/repo, where link is a junction to real, the init cwd was real/repo and the transcript folder used the real spelling; a PreToolUse hook on Write received cwd and file_path under real/repo (2026-11-25, Claude Code 2.1.330, Windows 11)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>claude code junction path</li><li>claude code cwd resolved real path</li><li>mklink /J claude code</li><li>claude code hook file_path different path</li><li>claude code working directory junction windows</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li><li><a href="h04.html">A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</a></li><li><a href="h05.html">A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)</a></li><li><a href="h06.html">Writing through a Windows 8.3 short name makes Claude Code drop the original file name</a></li><li><a href="h07.html">Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with &amp; or a pipe running</a></li><li><a href="h08.html">After claude -w -p exits, the git worktree stays locked and cannot be removed</a></li><li><a href="h09.html">A Claude Code Bash command containing $$( is stopped by the dangerous-removal check</a></li><li><a href="h10.html">On Windows, Claude Code&#x27;s Bash tool turns \\ (two backslashes) into one</a></li><li><a href="h12.html">Claude Code&#x27;s PowerShell tool goes back to the start folder on the next call after cd</a></li><li><a href="h11.html">On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call</a></li><li><a href="h13.html">claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)</a></li><li><a href="h15.html">A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading</a></li><li><a href="h17.html">Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

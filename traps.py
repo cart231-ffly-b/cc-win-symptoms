@@ -917,6 +917,43 @@ if (-not $ran['root']) { 'CANNOT CHECK (the hook did not run even at the root: c
     },
 })
 
+TRAPS.append({
+    "id": "h19",
+    "claude": True,
+    "check": HEAD + r"""$real = Join-Path $d 'real'
+$link = Join-Path $d 'link'
+New-Item -ItemType Directory -Force "$real\repo" | Out-Null
+cmd /c mklink /J "$link" "$real" | Out-Null
+git -C "$real\repo" init -q 2>$null
+if (-not (Test-Path "$link\repo")) { 'CANNOT CHECK (could not create the junction with mklink /J)' } else {
+Push-Location "$link\repo"
+$init = 'reply ok' | claude -p --model haiku --output-format stream-json --verbose --max-turns 1 | Where-Object { $_ -match '"subtype":"init"' } | Select-Object -First 1
+Pop-Location
+$cwd = [regex]::Match([string]$init, '"cwd":"([^"]+)"').Groups[1].Value.Replace('\\', '\')
+"launched in: $link\repo"
+"init cwd   : $cwd"
+if (-not $cwd) { 'CANNOT CHECK (no init line from claude -p: check that claude -p works and is logged in)' } elseif ($cwd -like '*\real\repo') """ + YES + r"""
+}""",
+    "ja": {
+        "title": "ジャンクションの下で Claude Code を起動すると、作業フォルダが本当のパスに置き換わる（フックにも）",
+        "search": ["Claude Code ジャンクション パス", "Claude Code cwd 変わる", "mklink /J Claude Code", "Claude Code junction realpath", "フック file_path パスが違う"],
+        "symptom": "mklink /J で作ったジャンクションの下のフォルダで Claude Code を起動したのに、Claude が言う作業フォルダも、フックに届く cwd と file_path も、ジャンクションをたどった先の本当のパスになっている。起動したときの綴りで書いたフックの許可の範囲が、当たらなくなる。",
+        "why": "Claude Code は、起動したフォルダのジャンクションをたどって、本当のパスを作業フォルダにする（公式 issue #106304。issue によると 2.1.312 までは起動したときの綴りのままだった）。会話の記録の置き場所も本当のパスで決まる。",
+        "fix": "フックでは、比べる両側を本当のパスにそろえてから比べる（Python なら os.path.realpath）。許可の範囲は本当のパスで書く。本の5章の安全装置は両側を realpath でそろえている（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）。",
+        "fixcode": "import os\nok = os.path.normcase(os.path.realpath(target)).startswith(os.path.normcase(os.path.realpath(root)) + os.sep)",
+        "result": "link（real を指すジャンクション）の下の link/repo で起動すると、init の cwd は real/repo になり、会話の記録のフォルダも real の綴りだった。Write の前に動くフックにも cwd と file_path が real/repo の綴りで届いた（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)",
+        "search": ["claude code junction path", "claude code cwd resolved real path", "mklink /J claude code", "claude code hook file_path different path", "claude code working directory junction windows"],
+        "symptom": "You started Claude Code in a folder under a junction made with mklink /J, but the working folder Claude reports, and the cwd and file_path your hooks receive, are the real path behind the junction. A hook whose allowed paths use the launch spelling no longer matches.",
+        "why": "Claude Code follows the junction in the starting folder and uses the real path as its working folder (official issue #106304; per the issue, 2.1.312 and earlier kept the launch spelling). The transcript folder is named after the real path too.",
+        "fix": "In hooks, resolve both sides to the real path before comparing (os.path.realpath in Python), and write allowed paths with the real path.",
+        "fixcode": "import os\nok = os.path.normcase(os.path.realpath(target)).startswith(os.path.normcase(os.path.realpath(root)) + os.sep)",
+        "result": "started in link/repo, where link is a junction to real, the init cwd was real/repo and the transcript folder used the real spelling; a PreToolUse hook on Write received cwd and file_path under real/repo (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
