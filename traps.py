@@ -800,6 +800,40 @@ if (-not $p1.EndsWith('/sub')) { 'CANNOT CHECK (cd did not work even inside the 
     },
 })
 
+TRAPS.append({
+    "id": "h13",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\.claude\agents" | Out-Null
+[IO.File]::WriteAllText("$d\.claude\agents\ro.md", "---`nname: ro`ndescription: read-only test agent`ntools: Read`n---`nYou answer questions briefly.`n")
+$schema = '{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"}},\"required\":[\"answer\"]}'
+$q = 'What is 2+2? Reply with the answer.'
+Push-Location $d
+$a = $q | claude -p --model haiku --json-schema $schema --output-format json | Out-String
+$b = $q | claude -p --model haiku --json-schema $schema --agent ro --output-format json | Out-String
+Pop-Location
+$ha = $a -match '"structured_output"'; $hb = $b -match '"structured_output"'; $ok = $b -match '"subtype":"success"'
+"without --agent: structured_output=$ha; with --agent ro: structured_output=$hb, subtype success=$ok"
+if (-not $ha) { 'CANNOT CHECK (even without --agent there was no structured_output: check that claude -p works and is logged in)' } elseif ((-not $hb) -and $ok) """ + YES,
+    "ja": {
+        "title": "claude -p の --json-schema が、道具を絞った --agent を付けると黙って効かない（成功のまま）",
+        "search": ["claude -p json-schema structured_output 出ない", "claude --json-schema --agent", "structured_output missing", "Claude Code 構造化出力 空", "claude -p subtype success structured_output"],
+        "symptom": "claude -p --json-schema で決まった形の答え（structured_output）を受け取るスクリプトが、--agent を付けた回だけ空の値で進む。終了コードは 0、subtype は success、is_error は false で、エラーは出ない。",
+        "why": "--json-schema の答えは、Claude が StructuredOutput という道具を呼んで返す。エージェントの tools: で道具を絞ると、この道具も外れて、Claude はふつうの文で答えて終わる（公式 issue #109393）。",
+        "fix": "--json-schema を付けたら、structured_output が無いことを失敗として扱う（subtype や終了コードだけで判断しない）。--json-schema を使う回では、道具を絞ったエージェントを使わない。PowerShell 5.1 から claude -p を安全に呼ぶ関数は本の8章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "$out = $prompt | claude -p --json-schema $schema --output-format json | Out-String\nif ($LASTEXITCODE -ne 0 -or $out -notmatch '\"structured_output\"') { Write-Error 'no structured_output'; exit 1 }",
+        "result": "--json-schema だけでは structured_output={answer:4}。tools: Read だけのエージェント（--agent ro）を足すと、終了コード 0・subtype success・is_error false のまま structured_output の項目が無かった。PowerShell 5.1 と Git Bash の両方で同じ（2026-11-25、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)",
+        "search": ["claude -p json-schema structured_output missing", "claude --json-schema --agent", "structured_output missing agent tools", "claude code structured output empty", "claude -p subtype success no structured_output"],
+        "symptom": "A script that reads the structured answer (structured_output) from claude -p --json-schema gets nothing when --agent is added. Exit code 0, subtype success, is_error false, no error.",
+        "why": "The --json-schema answer comes back through a tool named StructuredOutput. When the agent's tools: allowlist restricts tools, that tool is removed too, and Claude answers in plain text (official issue #109393).",
+        "fix": "When you pass --json-schema, treat a missing structured_output as a failure instead of trusting subtype or the exit code. Do not use an agent with a tools: allowlist in runs that need --json-schema.",
+        "fixcode": "$out = $prompt | claude -p --json-schema $schema --output-format json | Out-String\nif ($LASTEXITCODE -ne 0 -or $out -notmatch '\"structured_output\"') { Write-Error 'no structured_output'; exit 1 }",
+        "result": "with --json-schema alone, structured_output was {answer:4}; adding an agent with tools: Read only (--agent ro) gave exit 0, subtype success, is_error false and no structured_output field, from both PowerShell 5.1 and Git Bash (2026-11-25, Claude Code 2.1.330)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
