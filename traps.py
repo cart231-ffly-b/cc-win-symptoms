@@ -1054,6 +1054,38 @@ if ($w) """ + YES,
     },
 })
 
+TRAPS.append({
+    "id": "h16",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\Sub" | Out-Null
+[IO.File]::WriteAllText("$d\Sub\EditBack.txt", "fruit = APPLE`r`n")
+Push-Location $d
+"First use the Read tool on the file Sub/EditBack.txt in the current folder. Then use the Edit tool exactly once with file_path set to exactly this string, character for character: $d\sub\editback.TXT . Replace APPLE with ORANGE. Use no other tools. Then stop." | claude -p --allowedTools "Read,Edit" | Out-Null
+Pop-Location
+$name = (Get-ChildItem -LiteralPath "$d\Sub" | ForEach-Object Name) -join ', '
+$body = (Get-Content -LiteralPath "$d\Sub\EditBack.txt" -Raw).Trim()
+"file name after the Edit: $name; content: $body"
+if ($body -notmatch 'ORANGE') { 'CANNOT CHECK (the Edit did not happen: check that claude -p can use Read and Edit)' } elseif ($name -ceq 'editback.TXT') """ + YES,
+    "ja": {
+        "title": "Windows の Claude Code で Edit・Write すると、ファイル名の大文字小文字が黙って変わる",
+        "search": ["Claude Code ファイル名 小文字になる", "Claude Code Edit ファイル名 変わる", "git status 大文字小文字 Windows 変わった", "core.ignorecase Claude Code", "Claude Code renames file case windows"],
+        "symptom": "Claude Code に直させた Config.txt が、いつの間にか config.TXT のように大文字小文字の違う名前になっている。中身は正しく直っていて、ツールはいつもの「更新しました」としか言わない。Windows の git status には M としか出ない。",
+        "why": "Edit・Write に渡したパス（file_path）の大文字小文字が実際の名前と違うと、Claude Code は中身を直したうえで、ファイル名を file_path の綴りに変える（公式 issue #100987）。PowerShell の Set-Content など、ふつうの書き込みでは名前は変わらない。Windows の git は大文字小文字を区別しない設定がふつうなので、名前の変化が見えない。",
+        "fix": "Edit・Write の前に Glob や Read で実際の名前を確かめ、その綴りのまま file_path に書かせる。CLAUDE.md にもそう書く。commit の前に git -c core.ignorecase=false status --short で D と ?? の組が無いかを見る。CLAUDE.md の型は本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "git -c core.ignorecase=false status --short\n# D Config.txt と ?? config.TXT が並んでいたら、名前が変わっている",
+        "result": "Read のあと Edit に ...\\sub\\editback.TXT を渡すと、EditBack.txt の中身が直り、名前が editback.TXT になった。/ 区切りでも Write でも同じ。Set-Content では Ctrl.txt のまま。git では M Config.txt としか出ず、core.ignorecase=false では D と ?? に分かれた（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "On Windows, Claude Code's Edit and Write silently change the letter case of the file name",
+        "search": ["claude code renames file case windows", "claude code edit changes file name case", "git status case change windows claude", "core.ignorecase claude code edit", "claude code write lowercase filename"],
+        "symptom": "A Config.txt that Claude Code edited is now called config.TXT or another spelling with different letter case. The content is correct, the tool only said it was updated, and git status on Windows shows just M.",
+        "why": "When the file_path given to Edit or Write differs in letter case from the real name, Claude Code changes the content and also renames the file to the spelling in file_path (official issue #100987). Ordinary writes such as PowerShell Set-Content keep the name. Git on Windows ignores case by default, so the rename does not show.",
+        "fix": "Have Claude check the real name with Glob or Read before Edit or Write and use that exact spelling in file_path; say so in CLAUDE.md. Before committing, run git -c core.ignorecase=false status --short and look for a D and ?? pair.",
+        "fixcode": "git -c core.ignorecase=false status --short\n# a D Config.txt next to ?? config.TXT means the name changed",
+        "result": "after Read, an Edit with file_path ...\\sub\\editback.TXT changed EditBack.txt's content and renamed it to editback.TXT; the same with forward slashes and with Write; Set-Content kept Ctrl.txt; git showed only M Config.txt, and with core.ignorecase=false it showed D and ?? (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:

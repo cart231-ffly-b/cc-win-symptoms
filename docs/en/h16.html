@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On Windows, Claude Code&#x27;s Edit and Write silently change the letter case of the file name | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="A Config.txt that Claude Code edited is now called config.TXT or another spelling with different letter case. The content is correct, the tool only sa">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h16.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h16.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h16.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="On Windows, Claude Code&#x27;s Edit and Write silently change the letter case of the file name | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="A Config.txt that Claude Code edited is now called config.TXT or another spelling with different letter case. The content is correct, the tool only sa">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h16.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/h16.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">H16</p>
+<h1>On Windows, Claude Code&#x27;s Edit and Write silently change the letter case of the file name</h1>
+<h2>Symptom</h2>
+<p>A Config.txt that Claude Code edited is now called config.TXT or another spelling with different letter case. The content is correct, the tool only said it was updated, and git status on Windows shows just M.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine. It calls claude once, so it takes about a minute.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force &quot;$d\Sub&quot; | Out-Null
+[IO.File]::WriteAllText(&quot;$d\Sub\EditBack.txt&quot;, &quot;fruit = APPLE`r`n&quot;)
+Push-Location $d
+&quot;First use the Read tool on the file Sub/EditBack.txt in the current folder. Then use the Edit tool exactly once with file_path set to exactly this string, character for character: $d\sub\editback.TXT . Replace APPLE with ORANGE. Use no other tools. Then stop.&quot; | claude -p --allowedTools &quot;Read,Edit&quot; | Out-Null
+Pop-Location
+$name = (Get-ChildItem -LiteralPath &quot;$d\Sub&quot; | ForEach-Object Name) -join &#x27;, &#x27;
+$body = (Get-Content -LiteralPath &quot;$d\Sub\EditBack.txt&quot; -Raw).Trim()
+&quot;file name after the Edit: $name; content: $body&quot;
+if ($body -notmatch &#x27;ORANGE&#x27;) { &#x27;CANNOT CHECK (the Edit did not happen: check that claude -p can use Read and Edit)&#x27; } elseif ($name -ceq &#x27;editback.TXT&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
+<h2>Why it happens</h2>
+<p>When the file_path given to Edit or Write differs in letter case from the real name, Claude Code changes the content and also renames the file to the spelling in file_path (official issue #100987). Ordinary writes such as PowerShell Set-Content keep the name. Git on Windows ignores case by default, so the rename does not show.</p>
+<h2>Fix</h2>
+<p>Have Claude check the real name with Glob or Read before Edit or Write and use that exact spelling in file_path; say so in CLAUDE.md. Before committing, run git -c core.ignorecase=false status --short and look for a D and ?? pair.</p>
+<pre><code>git -c core.ignorecase=false status --short
+# a D Config.txt next to ?? config.TXT means the name changed</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">after Read, an Edit with file_path ...\sub\editback.TXT changed EditBack.txt&#x27;s content and renamed it to editback.TXT; the same with forward slashes and with Write; Set-Content kept Ctrl.txt; git showed only M Config.txt, and with core.ignorecase=false it showed D and ?? (2026-11-25, Claude Code 2.1.330, Windows 11)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>claude code renames file case windows</li><li>claude code edit changes file name case</li><li>git status case change windows claude</li><li>core.ignorecase claude code edit</li><li>claude code write lowercase filename</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li><li><a href="h04.html">A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</a></li><li><a href="h05.html">A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)</a></li><li><a href="h06.html">Writing through a Windows 8.3 short name makes Claude Code drop the original file name</a></li><li><a href="h07.html">Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with &amp; or a pipe running</a></li><li><a href="h08.html">After claude -w -p exits, the git worktree stays locked and cannot be removed</a></li><li><a href="h09.html">A Claude Code Bash command containing $$( is stopped by the dangerous-removal check</a></li><li><a href="h10.html">On Windows, Claude Code&#x27;s Bash tool turns \\ (two backslashes) into one</a></li><li><a href="h12.html">Claude Code&#x27;s PowerShell tool goes back to the start folder on the next call after cd</a></li><li><a href="h11.html">On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call</a></li><li><a href="h13.html">claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)</a></li><li><a href="h15.html">A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading</a></li><li><a href="h17.html">Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run</a></li><li><a href="h19.html">Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)</a></li><li><a href="h14.html">On Windows, Claude Code&#x27;s Bash tool does not run commands longer than about 7,400 characters (the error says a quote is unmatched)</a></li><li><a href="h21.html">If a hook&#x27;s .ps1 file is missing, writes go through even with onFailure: block</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>
