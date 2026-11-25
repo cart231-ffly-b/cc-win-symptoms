@@ -599,6 +599,74 @@ if ((-not $long) -and ($names -match [regex]::Escape($short))) """ + YES + r"""
 })
 
 TRAPS.append({
+    "id": "h07",
+    "claude": True,
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\p.txt", "Do exactly these steps and nothing else:`n1. Use the Bash tool with run_in_background set to true to run exactly this command: sleep 123 & timeout 124 sleep 122 & sleep 125 | cat`n2. Use the TaskStop tool to stop that background task.`n3. Reply STOPPED and the task id.")
+Push-Location $d
+$o = Get-Content "$d\p.txt" -Raw | claude -p --allowedTools "Bash,TaskStop" | Out-String
+Pop-Location
+Start-Sleep -Seconds 3
+$left = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'sleep(\.exe)?"?\s+12[235]\b' })
+"claude said: $($o.Trim())"
+"processes still running after claude -p ended: $($left.Count)"
+$left | ForEach-Object { '  ' + $_.ProcessId + ' ' + $_.CommandLine }
+'(leftover sleep processes end by themselves within about two minutes)'
+if ($o -notmatch 'STOPPED') { 'CANNOT CHECK (claude did not report STOPPED: check that the Bash and TaskStop tools are available and allowed)' } elseif ($left.Count -gt 0) """ + YES,
+    "ja": {
+        "title": "Claude Code で裏の Bash を TaskStop で止めても、& やパイプで動かしたプロセスが残る",
+        "search": ["Claude Code TaskStop プロセス 残る", "Claude Code バックグラウンド 止まらない", "claude -p 終わったのに sleep 残る", "Claude Code Windows 孤児プロセス", "run_in_background 止まらない"],
+        "symptom": "Claude Code に裏で動かさせた Bash を TaskStop で止め、claude -p も終わったのに、タスクマネージャーに sleep.exe や cat.exe、timeout.exe が残っている。tail -f や繰り返しだと残り続け、PC が重くなる。翌晩の実行とぶつかることもある。",
+        "why": "Windows の Claude Code は、裏で動かした Bash を TaskStop で止めるとき、いちばん上の bash は止めるが、その中で & やパイプで動かしたプロセスまでは止めない（公式 issue #109388）。claude -p が終わっても、それらは Git の usr/bin の下のプロセスとして残る。",
+        "fix": "裏で動かすコマンドには timeout を付ける（timeout 20 sleep 301 のように、時間が来れば自分で消える）。ときどき下のコマンドで Git の usr/bin の下のプロセスを一覧にして、残りを探す。夜に無人で回すなら、終わったあとに残ったプロセスを見つけて次の回を止める仕組みを置く（本の6章 https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）。",
+        "fixcode": "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*\\Git\\usr\\bin\\*' } | Select-Object ProcessId, CommandLine",
+        "result": "claude -p で裏の Bash に sleep 123 & timeout 124 sleep 122 & sleep 125 | cat を動かして TaskStop で止めさせると、claude -p が終わった3秒後も sleep 3つ・timeout・cat の5つが残った。timeout 20 sleep 301 は TaskStop のあと2つ残り、20秒後に両方消えた（2026-11-24、Claude Code 2.1.330、Git for Windows）",
+    },
+    "en": {
+        "title": "Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with & or a pipe running",
+        "search": ["claude code taskstop processes left running", "claude code background bash not killed windows", "claude -p exited but sleep still running", "claude code orphan processes windows", "run_in_background does not stop"],
+        "symptom": "You had Claude Code run a Bash command in the background and stop it with TaskStop, and claude -p has exited, but sleep.exe, cat.exe or timeout.exe are still in Task Manager. With tail -f or a loop they never end, slow the PC down, and can collide with the next night's run.",
+        "why": "On Windows, when TaskStop stops a background Bash task, Claude Code stops the top bash but not the processes it started with & or a pipe (official issue #109388). They stay running under Git's usr/bin after claude -p exits.",
+        "fix": "Give background commands a timeout (timeout 20 sleep 301 removes itself when time is up). From time to time, list the processes under Git's usr/bin with the command below and look for leftovers. For unattended night runs, detect processes left after a run and stop the next run.",
+        "fixcode": "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*\\Git\\usr\\bin\\*' } | Select-Object ProcessId, CommandLine",
+        "result": "with sleep 123 & timeout 124 sleep 122 & sleep 125 | cat run as a background Bash task in claude -p and stopped with TaskStop, all five (three sleep, timeout, cat) were still running 3 seconds after claude -p exited; with timeout 20 sleep 301, two were left after TaskStop and both were gone 20 seconds later (2026-11-24, Claude Code 2.1.330, Git for Windows)",
+    },
+})
+
+TRAPS.append({
+    "id": "h08",
+    "claude": True,
+    "check": HEAD + r"""Push-Location $d
+git init -q 2>$null
+git -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init 2>$null
+'Reply with the single word OK.' | claude -w e1 -p | Out-Null
+$list = git worktree list --porcelain 2>$null | Out-String
+Pop-Location
+$wt = ([regex]::Matches($list, '(?m)^worktree ')).Count
+$lock = $list -match 'locked claude'
+"worktrees: $wt; lock line after claude -p ended: $lock"
+($list -split "`n") | Where-Object { $_ -match '^locked' }
+if ($wt -lt 2) { 'CANNOT CHECK (claude -w did not make a worktree: check that git is installed and claude -w works here)' } elseif ($lock) """ + YES,
+    "ja": {
+        "title": "claude -w -p が終わったあとも、git の worktree のロックが残って消せない",
+        "search": ["claude -w worktree locked", "git worktree remove locked claude session", "Claude Code worktree 消せない", "cannot remove a locked working tree", "claude --worktree ロック"],
+        "symptom": "claude -w で作った worktree を git worktree remove で消そうとすると「locked working tree」と断られる。git worktree prune でも残る。claude -p は終了コード 0 で終わっている。夜に回すたびに worktree が溜まっていく。",
+        "why": "claude -w は、作った worktree に「claude session e1 (pid …)」というロックを付ける。-p で動かすと、終わったあともこのロックを外さない（公式 issue #111811）。git はロックの付いた worktree を remove も prune もしない。",
+        "fix": "片付ける前に、git worktree list --porcelain の locked の行の pid がもう動いていないかを確かめ、動いていないものだけ git worktree unlock してから remove する。動いている pid のロックは外さない。未コミットの変更が無いかも先に見る。",
+        "fixcode": "git worktree list --porcelain\n# locked claude session ... (pid 1234) の 1234 が\nGet-Process -Id 1234 -ErrorAction SilentlyContinue\n# 何も出なければ\ngit worktree unlock <path>\ngit worktree remove <path>",
+        "result": "claude -w e1 -p と claude -w -p のどちらでも、終わった pid のロックのまま worktree が残り、git worktree remove が断られた。終わった pid のロックだけ外すと片付いた（2026-11-24、Claude Code 2.1.330）",
+    },
+    "en": {
+        "title": "After claude -w -p exits, the git worktree stays locked and cannot be removed",
+        "search": ["claude -w worktree locked", "git worktree remove locked claude session", "claude code worktree cannot remove", "cannot remove a locked working tree", "claude --worktree lock left"],
+        "symptom": "git worktree remove refuses a worktree made by claude -w with a locked working tree error, and git worktree prune leaves it too. claude -p exited with code 0. Every night run adds one more worktree.",
+        "why": "claude -w locks the worktree it makes with claude session e1 (pid ...). Run with -p, it does not remove that lock when it exits (official issue #111811). git neither removes nor prunes a locked worktree.",
+        "fix": "Before cleaning up, check that the pid on the locked line of git worktree list --porcelain is no longer running, and only then git worktree unlock and remove it. Do not unlock worktrees whose pid is still running, and check for uncommitted changes first.",
+        "fixcode": "git worktree list --porcelain\n# for locked claude session ... (pid 1234)\nGet-Process -Id 1234 -ErrorAction SilentlyContinue\n# if nothing is shown\ngit worktree unlock <path>\ngit worktree remove <path>",
+        "result": "with both claude -w e1 -p and claude -w -p, the worktree stayed locked to the pid of the exited process and git worktree remove refused it; unlocking only the locks of exited pids cleaned it up (2026-11-24, Claude Code 2.1.330)",
+    },
+})
+
+TRAPS.append({
     "id": "h09",
     "claude": True,
     "check": HEAD + r"""[IO.File]::WriteAllText("$d\p1.txt", 'Run exactly this Bash command and nothing else, then stop: echo ''a$$(b'' > x.txt')
