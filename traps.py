@@ -1191,6 +1191,36 @@ if (-not $ran) { 'CANNOT CHECK (the PowerShell tool did not run: check that clau
     },
 })
 
+TRAPS.append({
+    "id": "h22",
+    "claude": True,
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\case.txt", "a`tb`tc`n1`t2`t3`n")
+Push-Location $d
+"Use the Read tool on case.txt, then use the Edit tool once on case.txt with old_string set to exactly one TAB character, new_string set to exactly two space characters, and replace_all true. Use no other tools. Then stop." | claude -p --allowedTools "Read,Edit" | Out-Null
+Pop-Location
+$b = [IO.File]::ReadAllBytes("$d\case.txt")
+"case.txt was 12 bytes with 4 tabs; asked to turn each tab into two spaces; now $($b.Length) bytes, tabs left: $(@($b | Where-Object { $_ -eq 9 }).Count)"
+if ($b.Length -eq 12) { 'CANNOT CHECK (the Edit did not happen: check that claude -p can use Read and Edit)' } elseif ($b.Length -eq 8) """ + YES,
+    "ja": {
+        "title": "Claude Code の Edit・Write は、.md 以外のファイルで行末の空白を黙って消す（タブを空白に置き換えると、消えるだけ）",
+        "search": ["Claude Code タブ 空白 置き換え 消える", "Claude Code Edit 行末 空白 消える", "Claude Code trailing whitespace removed", "Claude Code Write 空白 消える txt", "Claude Code インデント 消えた"],
+        "symptom": "Claude Code にタブを空白に揃えさせたら、タブが消えただけで空白が入っていない（a<TAB>b が ab になる）。ツールは置き換えが済んだと返す。Write で書いたファイルも、行末の空白が消えている。.md のファイルでは起きない。",
+        "why": "Edit と Write は、.md 以外のファイルでは、渡された文字列の各行の末尾の空白（空白とタブ）を取り除いてから書く（公式 issue #100296）。置き換え先が空白だけだと全部が行末の空白とみなされて空になり、置き換えが削除になる。",
+        "fix": "空白だけの置き換えや、行末の空白を残したい書き込みは、Edit・Write ではなくスクリプト（PowerShell の -replace や Python）でやらせ、終わったらバイト数や git diff で確かめる。CLAUDE.md にもそう書く。CLAUDE.md の型は本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "$t = [IO.File]::ReadAllText('C:/work/case.txt')\n[IO.File]::WriteAllText('C:/work/case.txt', $t.Replace(\"`t\", '  '))",
+        "result": ".txt でタブ1つを空白2つに Edit（replace_all）すると、タブが消えて空白は入らず 12→8 バイト。.md では空白2つが入った。Write も .txt では行末の空白が消え、.md では残った（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "Claude Code's Edit and Write silently strip trailing whitespace outside .md files (tabs-to-spaces just deletes the tabs)",
+        "search": ["claude code edit tabs to spaces deletes tabs", "claude code trailing whitespace removed", "claude code write strips trailing spaces", "claude code edit whitespace only new_string", "claude code indentation lost"],
+        "symptom": "You ask Claude Code to turn tabs into spaces and the tabs are gone with no spaces in their place (a<TAB>b becomes ab), while the tool says the replacement was made. Files written with Write lose their trailing spaces too. .md files are not affected.",
+        "why": "Outside .md files, Edit and Write strip whitespace at the end of each line of the text they are given before writing (official issue #100296). A replacement made only of whitespace is all trailing, so it becomes empty and the replacement turns into a deletion.",
+        "fix": "Do whitespace-only replacements, and writes that must keep trailing spaces, with a script (PowerShell -replace or Python) instead of Edit or Write, then check the byte count or git diff. Say so in CLAUDE.md.",
+        "fixcode": "$t = [IO.File]::ReadAllText('C:/work/case.txt')\n[IO.File]::WriteAllText('C:/work/case.txt', $t.Replace(\"`t\", '  '))",
+        "result": "an Edit with replace_all turning one tab into two spaces in a .txt file deleted the tabs and wrote no spaces (12 to 8 bytes); in a .md file the spaces were written; Write also dropped trailing spaces in .txt and kept them in .md (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
