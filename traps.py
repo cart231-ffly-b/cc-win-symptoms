@@ -1125,6 +1125,41 @@ if (-not (Test-Path "$d\seen.txt")) { 'CANNOT CHECK (the hook did not run: check
     },
 })
 
+TRAPS.append({
+    "id": "h18",
+    "claude": True,
+    "check": HEAD + r"""New-Item -ItemType Directory -Force "$d\sub" | Out-Null
+[IO.File]::WriteAllText("$d\sub\CLAUDE.md", "# Rules for this folder`nWhenever you answer after reading a file in this folder, end your answer with the code word ZEBRA-42.`n")
+[IO.File]::WriteAllText("$d\sub\a.txt", "hello`n")
+Set-Location $d
+$lower = 'c' + $d.Substring(1)
+$got = @()
+foreach ($p in "$d\sub\a.txt", "$lower\sub\a.txt") {
+    $ans = "Use the Read tool once with file_path set to exactly this string: $p . Then reply with the file's content and follow any instructions you were given for that folder." | claude -p --allowedTools Read | Out-String
+    $got += ($ans -match 'ZEBRA-42')
+}
+"sub\CLAUDE.md applied with C:\ path: $($got[0]); with c:\ path: $($got[1])"
+if ($d.Substring(0, 2) -ne 'C:') { 'CANNOT CHECK (TEMP is not on drive C:)' } elseif (-not $got[0]) { 'CANNOT CHECK (the folder CLAUDE.md was not applied even with C:\: check that claude -p can use Read)' } elseif (-not $got[1]) """ + YES,
+    "ja": {
+        "title": "Windows の Claude Code は、パスのドライブ文字が小文字（c:\\）だと、下のフォルダの CLAUDE.md を読まない",
+        "search": ["Claude Code CLAUDE.md 読まれない サブフォルダ", "Claude Code nested CLAUDE.md not loaded windows", "Claude Code ドライブ文字 小文字", "c:\\ C:\\ Claude Code CLAUDE.md", "Claude Code フォルダごとの CLAUDE.md 効かない"],
+        "symptom": "下のフォルダに置いた CLAUDE.md の決まりを、Claude Code がときどき守らない。守らなかった回は、Read に渡したパスのドライブ文字の大小が、起動したフォルダと違っていた（C: で起動して c:\\ で読んだ、など）。エラーも警告も出ない。",
+        "why": "Claude Code は、下のフォルダのファイルを Read したときにそのフォルダの CLAUDE.md を読み込むが、Windows ではドライブ文字の大小が起動したフォルダと違うと読み込まない（公式 issue #98835。報告は VS Code で c:\\ として開いたワークスペースで C:\\ が読まれなかった、作者は C: で起動して c:\\ が読まれなかった）。",
+        "fix": "必ず守らせたい決まりは、起動するフォルダの CLAUDE.md に書く（起動したフォルダのものは最初に読まれる）。CLAUDE.md に「パスはドライブ文字を大文字で C:/ と書く」と書く。CLAUDE.md の型は本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# CLAUDE.md\n- Windows のパスは、ドライブ文字を大文字で C:/ と書き、/ 区切りにする",
+        "result": "C: で起動した claude -p で、Read の file_path が C:\\ と C:/ なら sub\\CLAUDE.md が効き、c:\\ と c:/ では効かなかった（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "On Windows, Claude Code skips a subfolder's CLAUDE.md when the path's drive letter is lowercase (c:\\)",
+        "search": ["claude code nested CLAUDE.md not loaded windows", "claude code subdirectory CLAUDE.md ignored", "claude code drive letter case c: C:", "claude code CLAUDE.md lowercase drive letter", "claude code folder rules not applied windows"],
+        "symptom": "Claude Code sometimes ignores the rules in a CLAUDE.md placed in a subfolder. In those runs, the drive letter in the path given to Read differed in case from the folder Claude Code started in (started in C:, read with c:\\). No error, no warning.",
+        "why": "Claude Code loads a subfolder's CLAUDE.md when it reads a file there, but on Windows it does not when the drive letter's case differs from the starting folder (official issue #98835: the report had a VS Code workspace opened as c:\\ with C:\\ reads failing; the author started in C: and c:\\ reads failed).",
+        "fix": "Put rules that must always apply in the CLAUDE.md of the folder Claude Code starts in (that one is loaded at startup). Tell Claude in CLAUDE.md to write paths with an uppercase drive letter, C:/.",
+        "fixcode": "# CLAUDE.md\n- On Windows, write paths with an uppercase drive letter (C:/) and forward slashes",
+        "result": "in claude -p started in C:, the subfolder CLAUDE.md applied when Read got C:\\ or C:/ and did not when it got c:\\ or c:/ (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
