@@ -954,6 +954,53 @@ if (-not $cwd) { 'CANNOT CHECK (no init line from claude -p: check that claude -
     },
 })
 
+TRAPS.append({
+    "id": "h14",
+    "claude": True,
+    "check": HEAD + r"""$hook = @'
+import json, sys
+from pathlib import Path
+d = json.load(sys.stdin)
+if d.get("tool_name") != "Bash":
+    sys.exit(0)
+n = int(Path("n.txt").read_text().strip())
+cmd = "printf %s '" + "A" * n + "' > o.txt; echo ok > d.txt"
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": cmd}}}))
+'@
+[IO.File]::WriteAllText("$d\hook.py", $hook)
+$hp = ($d + '\hook.py').Replace('\', '/')
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"python \"HP\""}]}]}}'.Replace('HP', $hp))
+$ok = @{}
+Push-Location $d
+foreach ($n in 7000, 7600) {
+    Remove-Item -LiteralPath "$d\o.txt", "$d\d.txt" -ErrorAction SilentlyContinue
+    [IO.File]::WriteAllText("$d\n.txt", "$n")
+    'Use the Bash tool once to run: echo hi . Then stop.' | claude -p --settings s.json --allowedTools Bash | Out-Null
+    $ok[$n] = (Test-Path "$d\d.txt")
+}
+Pop-Location
+"a 7000-A command ran to the end: $($ok[7000]); a 7600-A command ran to the end: $($ok[7600])"
+if (-not $ok[7000]) { 'CANNOT CHECK (even the 7000-character command did not run: check that python is installed and the Bash tool works)' } elseif (-not $ok[7600]) """ + YES,
+    "ja": {
+        "title": "Windows の Claude Code の Bash ツールは、7,400 文字ほどを超えるコマンドを動かさない（エラーは「引用符が閉じていない」）",
+        "search": ["unexpected EOF while looking for matching", "Claude Code Bash 長いコマンド 動かない", "Claude Code ヒアドキュメント 失敗 Windows", "Git Bash bash -c 8186", "Claude Code Bash tool command too long windows"],
+        "symptom": "Claude Code が長いヒアドキュメントやスクリプトを Bash ツールで流すと、何も動かず unexpected EOF while looking for matching という引用符のエラーが返る。コマンドに引用符の間違いは無い。単引用符ばかりの中身なら、1,500 文字ほどのコマンドでも起きる。",
+        "why": "Windows の Claude Code は、Bash ツールのコマンドを準備と後始末の部分で包み、bash.exe -c の1つの文字列にして渡す。Git for Windows の bash はこの文字列を 8,186 文字までしか受け取らず、残りを捨てる（公式 issue #102533）。包む部分を引くと、書けるコマンドは作者の PC で 7,400 文字前後。issue によると単引用符は5文字に書き換えられ、1つで5文字ぶん使う。",
+        "fix": "長いスクリプトやヒアドキュメントは、Write ツールでファイルに書いてから bash script.sh のように短いコマンドで動かす。CLAUDE.md にもそう書いておく。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "# CLAUDE.md\n- Windows では Bash ツールのコマンドに長いスクリプトやヒアドキュメントを書かない（上限は 7,000 文字台、単引用符は1つで5文字ぶん）\n- 数千文字を超えそうなものは Write ツールでファイルに書いてから bash <ファイル> で動かす",
+        "result": "Bash ツールに渡るコマンドを PreToolUse フックで差し替えると、7,417 文字は動き、7,421 文字は何も動かなかった。単引用符 1,450 個（1,495 文字）は動き、1,500 個（1,545 文字）は動かなかった。9,000 文字の中身をファイルに書いて bash big.sh は動いた（2026-11-25、Claude Code 2.1.330、Git for Windows 2.56.0）",
+    },
+    "en": {
+        "title": "On Windows, Claude Code's Bash tool does not run commands longer than about 7,400 characters (the error says a quote is unmatched)",
+        "search": ["unexpected EOF while looking for matching claude code", "claude code bash long command fails windows", "claude code heredoc fails windows", "git bash bash -c 8186 characters", "claude code bash tool command too long"],
+        "symptom": "When Claude Code runs a long heredoc or script with the Bash tool, nothing runs and it gets unexpected EOF while looking for matching, a quoting error, although the command has no quoting mistake. With text made mostly of single quotes, it happens at about 1,500 characters.",
+        "why": "On Windows, Claude Code wraps the Bash tool command in setup and cleanup code and passes it as one bash.exe -c string. Git for Windows bash keeps only the first 8,186 characters of that string and drops the rest (official issue #102533). After the wrapper, about 7,400 characters are left for the command on the author's PC. According to the issue, each single quote is rewritten as five characters.",
+        "fix": "Write long scripts and heredocs to a file with the Write tool, then run them with a short command such as bash script.sh. Say so in CLAUDE.md.",
+        "fixcode": "# CLAUDE.md\n- On Windows, do not put long scripts or heredocs in Bash tool commands (the limit is in the 7,000s; a single quote counts as 5)\n- Write anything over a few thousand characters to a file with the Write tool and run bash <file>",
+        "result": "with the Bash tool command replaced by a PreToolUse hook, 7,417 characters ran and 7,421 characters ran nothing; 1,450 single quotes (1,495 characters) ran and 1,500 (1,545 characters) did not; a 9,000-character body written to big.sh ran with bash big.sh (2026-11-25, Claude Code 2.1.330, Git for Windows 2.56.0)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
