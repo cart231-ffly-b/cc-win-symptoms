@@ -875,6 +875,48 @@ if (-not $res['plain']) { 'CANNOT CHECK (even without the partial Read the code 
     },
 })
 
+TRAPS.append({
+    "id": "h17",
+    "claude": True,
+    "check": HEAD + r"""$repo = Join-Path $d 'hookrepo'
+New-Item -ItemType Directory -Force "$repo\.claude", "$repo\sub\deep" | Out-Null
+Push-Location $repo; git init -q 2>$null; Pop-Location
+$mark = ($repo + '\hook-ran.txt').Replace('\', '/')
+$cmd = 'python -c "open(r''' + $mark + ''',''a'').write(''x'')"'
+$settings = @{ hooks = @{ PreToolUse = @(@{ matcher = 'Read'; hooks = @(@{ type = 'command'; command = $cmd }) }) } } | ConvertTo-Json -Depth 8
+[IO.File]::WriteAllText("$repo\.claude\settings.json", $settings)
+[IO.File]::WriteAllText("$repo\sub\deep\a.txt", "hello`n")
+[IO.File]::WriteAllText("$repo\a.txt", "hello`n")
+$ran = @{}
+foreach ($where in 'root', 'sub\deep') {
+    Remove-Item -LiteralPath "$repo\hook-ran.txt" -ErrorAction SilentlyContinue
+    Push-Location (Join-Path $repo ($where -replace 'root', ''))
+    'Use the Read tool once on a.txt and reply done.' | claude -p --allowedTools Read | Out-Null
+    Pop-Location
+    $ran[$where] = Test-Path "$repo\hook-ran.txt"
+}
+"root hook ran when started at the repo root: $($ran['root']); when started in sub\deep: $($ran['sub\deep'])"
+if (-not $ran['root']) { 'CANNOT CHECK (the hook did not run even at the root: check that python and git are installed)' } elseif (-not $ran['sub\deep']) """ + YES,
+    "ja": {
+        "title": "リポジトリのサブフォルダで Claude Code を起動すると、ルートの .claude/settings.json のフックが効かない",
+        "search": ["Claude Code フック 効かない サブフォルダ", "Claude Code settings.json 読まれない", "Claude Code hooks not running subdirectory", "settings.local.json Windows", "claude plugin disabled サブフォルダ"],
+        "symptom": "リポジトリの直下の .claude/settings.json に入れた書き込みを止めるフックが、ときどき動かない。動かなかった回は、エディタの端末やスクリプトが、リポジトリの下のフォルダで claude を起動していた。エラーも警告も出ない。",
+        "why": "公式の説明書のとおり、共有の .claude/settings.json は起動したフォルダから読む。.claude/settings.local.json はふつうリポジトリの直下のものを使うが、Windows では例外で起動したフォルダのものを使う。local の範囲で入れたプラグインも同じ理由でサブフォルダでは disabled になる（公式 issue #106149）。",
+        "fix": "必ず止めたいフックはユーザーの設定（~/.claude/settings.json）に入れる。無人のスクリプトは Push-Location でリポジトリの直下に移ってから claude -p を呼ぶ。安全装置の作り方は本の5章（https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps ）にある。",
+        "fixcode": "Push-Location C:/work/repo   # .claude/settings.json があるフォルダ\n$prompt | claude -p\nPop-Location",
+        "result": "直下の .claude/settings.json の PreToolUse フックは、直下で起動すると動き、sub/deep で起動すると動かなかった。.claude/settings.local.json に置いても同じ（2026-11-25、Claude Code 2.1.330、Windows 11）",
+    },
+    "en": {
+        "title": "Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run",
+        "search": ["claude code hooks not running subdirectory", "claude code settings.json not loaded subfolder", "settings.local.json windows repository root", "claude plugin disabled subfolder windows", "claude code project settings working directory"],
+        "symptom": "A hook in the repo root .claude/settings.json that blocks writes sometimes does nothing. In those runs, an editor terminal or a script started claude in a folder below the repo root. No error, no warning.",
+        "why": "As documented, the shared .claude/settings.json is read from the folder Claude Code starts in. .claude/settings.local.json normally comes from the repo root, but on Windows it is also read from the starting folder. Plugins installed with --scope local are disabled in subfolders for the same reason (official issue #106149).",
+        "fix": "Put hooks that must always run in the user settings (~/.claude/settings.json). In unattended scripts, Push-Location to the repo root before calling claude -p.",
+        "fixcode": "Push-Location C:/work/repo   # the folder that holds .claude/settings.json\n$prompt | claude -p\nPop-Location",
+        "result": "a PreToolUse hook in the root .claude/settings.json ran when claude was started at the root and did not run when started in sub/deep; the same with .claude/settings.local.json (2026-11-25, Claude Code 2.1.330, Windows 11)",
+    },
+})
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
