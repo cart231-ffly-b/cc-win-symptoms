@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows の症状を確認した週次結果</title>
+<meta name="description" content="GitHub Actions のランナーは英語ロケールの Windows（コードページ 437）を使います。日本語ロケール固有の症状は、ランナーでは「起きない（NOT REPRODUCED）」になることがあります。作者の日本語環境の PC での結果は、各症状のページにあります。">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/ja.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/ja.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/index.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Windows の症状を確認した週次結果">
+<meta property="og:description" content="GitHub Actions のランナーは英語ロケールの Windows（コードページ 437）を使います。日本語ロケール固有の症状は、ランナーでは「起きない（NOT REPRODUCED）」になることがあります。作者の日本語環境の PC での結果は、各症状のページにあります。">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/ja.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="../ja/index.html">症状一覧</a><a href="index.html" hreflang="en">English</a></header>
+<main>
+<h1>Windows の症状を確認した週次結果</h1>
+<p><img src="badge.svg" alt="windows traps | 12/14 reproduce"></p>
+<dl>
+<dt>実行日（UTC）</dt><dd>2026-11-27</dd>
+<dt>ランナーイメージ</dt><dd>win25-vs2026 20261123.321.1</dd>
+<dt>Windows のバージョン</dt><dd>10.0.26100</dd>
+<dt>PowerShell</dt><dd>5.1.26100.33822</dd>
+<dt>Python</dt><dd>3.13.17</dd>
+<dt>Windows ロケール（OEM コードページ）</dt><dd>en-US (437)</dd>
+</dl>
+<p class="note">GitHub Actions のランナーは英語ロケールの Windows（コードページ 437）を使います。日本語ロケール固有の症状は、ランナーでは「起きない（NOT REPRODUCED）」になることがあります。作者の日本語環境の PC での結果は、各症状のページにあります。</p>
+<h2>確認結果</h2>
+<ol class="list">
+<li><span class="id">T01</span> <strong>起きる</strong><br>
+<a href="../ja/t01.html">PowerShell の終了コードが、2 を返したのに 1 になる</a></li>
+<li><span class="id">T02</span> <strong>起きる</strong><br>
+<a href="../ja/t02.html">-File で渡した2つ目の引数が、エラーなしで消える</a></li>
+<li><span class="id">T03</span> <strong>起きる</strong><br>
+<a href="../ja/t03.html">-File で a,b と渡すと、配列にならず1つの文字列になる</a></li>
+<li><span class="id">T04</span> <strong>起きない</strong><br>
+<a href="../ja/t04.html">パイプで渡した日本語が ? になる（claude -p・python・git）</a></li>
+<li><span class="id">T05</span> <strong>起きる</strong><br>
+<a href="../ja/t05.html">python や claude の出力を変数に入れると文字化けする</a></li>
+<li><span class="id">T06</span> <strong>起きる</strong><br>
+<a href="../ja/t06.html">手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる</a></li>
+<li><span class="id">T07</span> <strong>起きる</strong><br>
+<a href="../ja/t07.html">PYTHONIOENCODING を設定したのに、python -I だと効かない</a></li>
+<li><span class="id">T08</span> <strong>起きる</strong><br>
+<a href="../ja/t08.html">日本語入りの .ps1 が、構文エラーになるか文字化けして動く</a></li>
+<li><span class="id">T09</span> <strong>起きない</strong><br>
+<a href="../ja/t09.html">.cmd / .bat のコメントが、コマンドとして実行される</a></li>
+<li><span class="id">T10</span> <strong>起きる</strong><br>
+<a href="../ja/t10.html">powershell -Command の1行に書いた $変数 が、呼ぶ前に消える</a></li>
+<li><span class="id">T11</span> <strong>起きる</strong><br>
+<a href="../ja/t11.html">Get-ChildItem の -Include が効かず、全部のファイルが返る</a></li>
+<li><span class="id">T12</span> <strong>起きる</strong><br>
+<a href="../ja/t12.html">&quot;...&quot; に書いた Markdown のバッククォートで、文字が消えて改行が入る</a></li>
+<li><span class="id">C01</span> <strong>起きる</strong><br>
+<a href="../ja/c01.html">Codex CLI が PowerShell 5.1 でパイプに渡した日本語が ? になる（終了コード 0）</a></li>
+<li><span class="id">C02</span> <strong>起きる</strong><br>
+<a href="../ja/c02.html">Codex CLI が PowerShell 5.1 で読んだ UTF-8（BOM なし）の日本語が化ける（終了コード 0）</a></li>
+</ol>
+</main>
+</body>
+</html>

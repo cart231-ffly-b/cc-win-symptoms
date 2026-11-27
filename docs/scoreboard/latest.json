@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-27",
+  "reproduced": 12,
+  "total": 14,
+  "environment": {
+    "runner_image": "win25-vs2026 20261123.321.1",
+    "windows_version": "10.0.26100",
+    "powershell_version": "5.1.26100.33822",
+    "python_version": "3.13.17",
+    "locale": "en-US",
+    "oem_code_page": 437
+  },
+  "results": [
+    {
+      "id": "t01",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t02",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t03",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t04",
+      "status": "NOT REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t05",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t06",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t07",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t08",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t09",
+      "status": "NOT REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t10",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t11",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "t12",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "c01",
+      "status": "REPRODUCED",
+      "detail": null
+    },
+    {
+      "id": "c02",
+      "status": "REPRODUCED",
+      "detail": null
+    }
+  ]
+}

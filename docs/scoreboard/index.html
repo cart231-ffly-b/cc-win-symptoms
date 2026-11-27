@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Windows survival scoreboard</title>
+<meta name="description" content="The GitHub Actions runner uses English-locale Windows (code page 437). Checks specific to a Japanese locale may show NOT REPRODUCED there. Each check’s page shows the author’s results on a Japanese PC.">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/index.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/index.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/ja.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Weekly Windows survival scoreboard">
+<meta property="og:description" content="The GitHub Actions runner uses English-locale Windows (code page 437). Checks specific to a Japanese locale may show NOT REPRODUCED there. Each check’s page shows the author’s results on a Japanese PC.">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/scoreboard/index.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="../en/index.html">All symptoms</a><a href="ja.html" hreflang="ja">日本語</a></header>
+<main>
+<h1>Weekly Windows survival scoreboard</h1>
+<p><img src="badge.svg" alt="windows traps | 12/14 reproduce"></p>
+<dl>
+<dt>Date (UTC)</dt><dd>2026-11-27</dd>
+<dt>Runner image</dt><dd>win25-vs2026 20261123.321.1</dd>
+<dt>Windows version</dt><dd>10.0.26100</dd>
+<dt>PowerShell</dt><dd>5.1.26100.33822</dd>
+<dt>Python</dt><dd>3.13.17</dd>
+<dt>Windows locale (OEM code page)</dt><dd>en-US (437)</dd>
+</dl>
+<p class="note">The GitHub Actions runner uses English-locale Windows (code page 437). Checks specific to a Japanese locale may show NOT REPRODUCED there. Each check’s page shows the author’s results on a Japanese PC.</p>
+<h2>Check results</h2>
+<ol class="list">
+<li><span class="id">T01</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li>
+<li><span class="id">T02</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t02.html">The second value passed with -File disappears without an error</a></li>
+<li><span class="id">T03</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t03.html">With -File, a,b stays one string instead of an array</a></li>
+<li><span class="id">T04</span> <strong>NOT REPRODUCED</strong><br>
+<a href="../en/t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li>
+<li><span class="id">T05</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t05.html">Output from python or claude turns into mojibake in a variable</a></li>
+<li><span class="id">T06</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li>
+<li><span class="id">T07</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li>
+<li><span class="id">T08</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li>
+<li><span class="id">T09</span> <strong>NOT REPRODUCED</strong><br>
+<a href="../en/t09.html">A .cmd / .bat file runs its comment text as commands</a></li>
+<li><span class="id">T10</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li>
+<li><span class="id">T11</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li>
+<li><span class="id">T12</span> <strong>REPRODUCED</strong><br>
+<a href="../en/t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li>
+<li><span class="id">C01</span> <strong>REPRODUCED</strong><br>
+<a href="../en/c01.html">Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0)</a></li>
+<li><span class="id">C02</span> <strong>REPRODUCED</strong><br>
+<a href="../en/c02.html">Codex CLI on PowerShell 5.1 misreads UTF-8 (no BOM) Japanese files (exit code 0)</a></li>
+</ol>
+</main>
+</body>
+</html>
