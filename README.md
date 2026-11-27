@@ -11,6 +11,18 @@ python -m http.server 8080 -d docs
 
 → http://127.0.0.1:8080/ja/index.html （英語は /en/index.html）
 
+## この PC でまとめて確かめる
+
+Windows PowerShell 5.1 に貼ると、各症状がこの PC で再現するかを、症状のページへのリンクと一緒に表示します。
+
+```powershell
+irm https://cart231-ffly-b.github.io/cc-win-symptoms/doctor.ps1 | iex
+```
+
+データはアップロードしません。管理者権限は不要です。書き込み先は専用の一時フォルダだけで、実行後に削除します。
+
+通信が必要な Claude のチェックは省きます。時間のかかるローカルチェックを含めるには、先に `$env:CCDOCTOR_ALL='1'` を実行します。
+
 ## 確かめる
 
 ```powershell

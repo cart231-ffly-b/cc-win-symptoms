@@ -4,6 +4,7 @@ Everything comes from traps.py. Do not edit docs/ by hand.
 """
 import datetime
 import html
+import json
 import os
 import pathlib
 import shutil
@@ -15,6 +16,7 @@ DOCS = ROOT / "docs"
 CHECKS = ROOT / "checks"
 # Assumed GitHub Pages address; change here if the repository lives elsewhere.
 BASE = "https://cart231-ffly-b.github.io/cc-win-symptoms/"
+DOCTOR_COMMAND = f"irm {BASE}doctor.ps1 | iex"
 INDEXNOW_KEY = "5e01d4778f176e4b4d7c7fbda4d1fbcd"
 TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 
@@ -83,6 +85,10 @@ T = {
         "copy": "コピー",
         "copied": "コピーしました",
         "other": "English",
+        "doctor": "この PC でまとめて確かめる",
+        "doctor_intro": "Windows PowerShell 5.1 に貼ると、この PC で再現する症状と、各症状のページを一覧で表示します。",
+        "doctor_local": "データはアップロードしません。管理者権限は不要です。書き込み先は専用の一時フォルダだけで、実行後に削除します。",
+        "doctor_skips": "通信が必要な Claude のチェックは省きます。時間のかかるローカルチェックを含めるには、先に $env:CCDOCTOR_ALL='1' を実行します。",
         "index": "一覧へ",
         "hooks": "Claude Code のフック",
         "ps": "PowerShell・Python・cmd",
@@ -107,6 +113,10 @@ T = {
         "copy": "Copy",
         "copied": "Copied",
         "other": "日本語",
+        "doctor": "Check this PC",
+        "doctor_intro": "Paste into Windows PowerShell 5.1 to see which symptoms reproduce on this PC and get a link to each symptom's page.",
+        "doctor_local": "It uploads no data and needs no administrator rights. It writes only to its own temporary folder and removes that folder when it finishes.",
+        "doctor_skips": "Checks that need Claude require a network connection and are skipped. To include the slow local check, first run $env:CCDOCTOR_ALL='1'.",
         "index": "All symptoms",
         "hooks": "Claude Code hooks",
         "ps": "PowerShell, Python, cmd",
@@ -216,6 +226,9 @@ def index(lang):
     out = [head(lang, t["site"], t["lead"][:150], f"{lang}/index.html", f"{other}/index.html")]
     out.append(f'<header><span></span><a href="../{other}/index.html" hreflang="{other}">{e(t["other"])}</a></header>\n<main>\n')
     out.append(f'<h1>{e(t["site"])}</h1>\n<p class="lead">{e(t["lead"])}</p>\n')
+    out.append(f'<h2>{e(t["doctor"])}</h2>\n<p>{e(t["doctor_intro"])}</p>\n'
+               f'<pre><code>{e(DOCTOR_COMMAND)}</code></pre>\n<p>{e(t["doctor_local"])}</p>\n'
+               f'<p>{e(t["doctor_skips"])}</p>\n')
     for head_key, prefix in (("hooks", "h"), ("ps", "t"), ("codex", "c")):
         out.append(f'<h2>{e(t[head_key])}</h2>\n<ol class="list">')
         for tr in TRAPS:
@@ -251,6 +264,49 @@ def root_index():
 """
 
 
+def write_doctor():
+    data = [{
+        "id": tr["id"],
+        "ja": tr["ja"]["title"],
+        "en": tr["en"]["title"],
+        "claude": tr.get("claude", False),
+        "slow": tr.get("slow", False),
+        "check": (CHECKS / f"{tr['id']}.ps1").read_bytes().decode("ascii"),
+    } for tr in TRAPS]
+    messages = {
+        "ja": {
+            "header": "ID  結果  症状  |  ページ",
+            "statuses": {
+                "REPRODUCED": "起きる",
+                "NOT REPRODUCED": "起きない",
+                "CANNOT CHECK": "調べられない",
+                "TIMEOUT": "時間切れ",
+            },
+            "summary": "この PC では、調べた {0} 件のうち {1} 件が起きました。各行のページに直し方があります。",
+            "skipped_claude": "Claude を呼ぶ {0} 件は、使用量を使うので調べていません。一覧: {1}",
+            "skipped_slow": "t13 も調べるには、$env:CCDOCTOR_ALL='1' を実行してからもう一度お試しください。",
+        },
+        "en": {
+            "header": "ID  Result  Symptom  |  Page",
+            "statuses": {
+                "REPRODUCED": "REPRODUCED",
+                "NOT REPRODUCED": "NOT REPRODUCED",
+                "CANNOT CHECK": "CANNOT CHECK",
+                "TIMEOUT": "TIMEOUT",
+            },
+            "summary": "{1} of {0} checks reproduce on this PC. Each row's page has the fix.",
+            "skipped_claude": "Skipped {0} that would call Claude and count toward your usage. Index: {1}",
+            "skipped_slow": "To include t13, run $env:CCDOCTOR_ALL='1' before running the doctor again.",
+        },
+    }
+    template = (ROOT / "doctor.template.ps1").read_text(encoding="ascii")
+    rows = ",\n".join(json.dumps(tr) for tr in data)
+    script = (template.replace("__BASE__", BASE)
+              .replace("__MESSAGES__", json.dumps(messages, indent=4))
+              .replace("__TRAPS__", f"[\n{rows}\n]"))
+    (DOCS / "doctor.ps1").write_text(script, encoding="ascii")
+
+
 def main():
     if DOCS.exists():
         shutil.rmtree(DOCS)
@@ -284,6 +340,7 @@ def main():
             raise SystemExit(f"{tr['id']}: check snippet must be ASCII-only, found {bad[:3]}")
         # CRLF so the file is also fine for anyone opening it in Notepad
         (CHECKS / f"{tr['id']}.ps1").write_bytes(src.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii") + b"\r\n")
+    write_doctor()
     (DOCS / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"<url><loc>{u}</loc></url>\n" for u in urls) + "</urlset>\n", encoding="utf-8")
