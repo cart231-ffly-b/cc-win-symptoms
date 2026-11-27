@@ -12,7 +12,9 @@ problems = []
 # 症状のページではないもの: Search Console の確認ファイルと、OAuth 審査用のプライバシーページ
 NOT_PAGES = re.compile(r"^(google[0-9a-f]+|privacy)\.html$")
 pages = sorted(p for p in DOCS.rglob("*.html") if not NOT_PAGES.match(p.relative_to(DOCS).as_posix()))
-want = 1 + 2 * (1 + len(TRAPS))
+scoreboard_pages = {DOCS / "scoreboard" / name for name in ("index.html", "ja.html")}
+scoreboard_exists = (DOCS / "scoreboard").is_dir()
+want = 1 + 2 * (1 + len(TRAPS)) + (len(scoreboard_pages) if scoreboard_exists else 0)
 if len(pages) != want:
     problems.append(f"expected {want} pages, found {len(pages)}")
 
@@ -27,6 +29,8 @@ for p in pages:
         if href.startswith(("http://", "https://", "#", "mailto:")):
             continue
         target = (p.parent / href).resolve()
+        if not scoreboard_exists and target in scoreboard_pages:
+            continue  # A fresh checkout can precede the first weekly run.
         if not target.exists():
             problems.append(f"{rel}: broken link {href}")
     if re.search(r"[가-힣]", text):

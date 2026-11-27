@@ -1,0 +1,51 @@
+name: Windows survival scoreboard
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency: windows-survival-scoreboard
+
+jobs:
+  scoreboard:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Run the default doctor checks
+        env:
+          CCDOCTOR_LANG: en
+          CCDOCTOR_JSON: ${{ runner.temp }}/ccdoctor-results.json
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File docs/doctor.ps1
+      - name: Render the scoreboard
+        env:
+          CCDOCTOR_JSON: ${{ runner.temp }}/ccdoctor-results.json
+        run: python scoreboard.py
+      - name: Commit scoreboard files
+        run: |
+          git add -- docs/scoreboard/
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git diff --cached --quiet -- docs/scoreboard/
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
+          git -c 'user.name=github-actions[bot]' -c 'user.email=41898282+github-actions[bot]@users.noreply.github.com' commit -m "Update Windows survival scoreboard" -- docs/scoreboard/
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push
+      - name: Request a GitHub Pages build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A push authenticated with GITHUB_TOKEN does not trigger Pages.
+        run: gh api --method POST "repos/$env:GITHUB_REPOSITORY/pages/builds"

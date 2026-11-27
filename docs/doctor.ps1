@@ -166,6 +166,7 @@
                 $result = Invoke-DoctorCheck $trap (Join-Path $runDir $trap.id) $encoding
                 if ($result -eq 'REPRODUCED') { $reproduced++ }
                 $status, $detail = $result -split ' \(', 2
+                if ($detail) { $detail = $detail.Substring(0, $detail.Length - 1) }
                 [pscustomobject]@{
                     Id = $trap.id
                     Status = $status
@@ -178,11 +179,19 @@
         }
     )
 
+    if ($env:CCDOCTOR_JSON) {
+        $jsonRows = @($rows | ForEach-Object {
+            [ordered]@{ id = $_.Id; status = $_.Status; detail = $_.Detail }
+        })
+        $jsonPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($env:CCDOCTOR_JSON)
+        [IO.File]::WriteAllText($jsonPath, (ConvertTo-Json -InputObject $jsonRows))
+    }
+
     $messages.header
     foreach ($row in ($rows | Sort-Object @{ Expression = { $_.Status -ne 'REPRODUCED' } }, Id)) {
         $label = $messages.statuses.($row.Status)
         $line = '{0}  {1}  {2}  |  {3}{4}/{0}.html' -f $row.Id, $label, $row.Title, $baseUrl, $lang
-        if ($row.Detail) { $line += '  |  ' + $row.Detail.Substring(0, $row.Detail.Length - 1) }
+        if ($null -ne $row.Detail) { $line += '  |  ' + $row.Detail }
         $line
     }
     if ($skippedClaude) { $messages.skipped_claude -f $skippedClaude, "$baseUrl$lang/index.html" }

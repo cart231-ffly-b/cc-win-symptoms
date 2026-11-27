@@ -89,6 +89,7 @@ T = {
         "doctor_intro": "Windows PowerShell 5.1 に貼ると、この PC で再現する症状と、各症状のページを一覧で表示します。",
         "doctor_local": "データはアップロードしません。管理者権限は不要です。書き込み先は専用の一時フォルダだけで、実行後に削除します。",
         "doctor_skips": "通信が必要な Claude のチェックは省きます。時間のかかるローカルチェックを含めるには、先に $env:CCDOCTOR_ALL='1' を実行します。",
+        "scoreboard": "Windows の症状を確認した週次結果",
         "index": "一覧へ",
         "hooks": "Claude Code のフック",
         "ps": "PowerShell・Python・cmd",
@@ -117,6 +118,7 @@ T = {
         "doctor_intro": "Paste into Windows PowerShell 5.1 to see which symptoms reproduce on this PC and get a link to each symptom's page.",
         "doctor_local": "It uploads no data and needs no administrator rights. It writes only to its own temporary folder and removes that folder when it finishes.",
         "doctor_skips": "Checks that need Claude require a network connection and are skipped. To include the slow local check, first run $env:CCDOCTOR_ALL='1'.",
+        "scoreboard": "Weekly Windows survival scoreboard",
         "index": "All symptoms",
         "hooks": "Claude Code hooks",
         "ps": "PowerShell, Python, cmd",
@@ -223,12 +225,14 @@ def foot(lang):
 def index(lang):
     t = T[lang]
     other = "en" if lang == "ja" else "ja"
+    scoreboard_page = "ja.html" if lang == "ja" else "index.html"
     out = [head(lang, t["site"], t["lead"][:150], f"{lang}/index.html", f"{other}/index.html")]
     out.append(f'<header><span></span><a href="../{other}/index.html" hreflang="{other}">{e(t["other"])}</a></header>\n<main>\n')
     out.append(f'<h1>{e(t["site"])}</h1>\n<p class="lead">{e(t["lead"])}</p>\n')
     out.append(f'<h2>{e(t["doctor"])}</h2>\n<p>{e(t["doctor_intro"])}</p>\n'
                f'<pre><code>{e(DOCTOR_COMMAND)}</code></pre>\n<p>{e(t["doctor_local"])}</p>\n'
-               f'<p>{e(t["doctor_skips"])}</p>\n')
+               f'<p>{e(t["doctor_skips"])}</p>\n'
+               f'<p><a href="../scoreboard/{scoreboard_page}">{e(t["scoreboard"])}</a></p>\n')
     for head_key, prefix in (("hooks", "h"), ("ps", "t"), ("codex", "c")):
         out.append(f'<h2>{e(t[head_key])}</h2>\n<ol class="list">')
         for tr in TRAPS:
@@ -309,7 +313,13 @@ def write_doctor():
 
 def main():
     if DOCS.exists():
-        shutil.rmtree(DOCS)
+        for child in DOCS.iterdir():
+            if child.name == "scoreboard":
+                continue  # The weekly workflow maintains this directory and its history.
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
     if CHECKS.exists():
         shutil.rmtree(CHECKS)
     for lang in ("ja", "en"):
