@@ -86,6 +86,7 @@ T = {
         "index": "一覧へ",
         "hooks": "Claude Code のフック",
         "ps": "PowerShell・Python・cmd",
+        "codex": "Codex CLI（OpenAI）",
         "footer": "作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。",
     },
     "en": {
@@ -109,6 +110,7 @@ T = {
         "index": "All symptoms",
         "hooks": "Claude Code hooks",
         "ps": "PowerShell, Python, cmd",
+        "codex": "Codex CLI (OpenAI)",
         "footer": "By Kamijo Aoto. Covers what was verified on the author's machine. Written with AI assistance: Claude Code drafted the text and ran the checks.",
     },
 }
@@ -214,7 +216,7 @@ def index(lang):
     out = [head(lang, t["site"], t["lead"][:150], f"{lang}/index.html", f"{other}/index.html")]
     out.append(f'<header><span></span><a href="../{other}/index.html" hreflang="{other}">{e(t["other"])}</a></header>\n<main>\n')
     out.append(f'<h1>{e(t["site"])}</h1>\n<p class="lead">{e(t["lead"])}</p>\n')
-    for head_key, prefix in (("hooks", "h"), ("ps", "t")):
+    for head_key, prefix in (("hooks", "h"), ("ps", "t"), ("codex", "c")):
         out.append(f'<h2>{e(t[head_key])}</h2>\n<ol class="list">')
         for tr in TRAPS:
             if tr["id"].startswith(prefix):

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0) | When Claude Code breaks silently on Windows</title>
+<meta name="description" content="When Codex CLI pipes text with non-ASCII characters into a command such as python, the command receives ? instead. The command exits 0 and Codex does ">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/c01.html">
+<link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/c01.html">
+<link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/c01.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0) | When Claude Code breaks silently on Windows">
+<meta property="og:description" content="When Codex CLI pipes text with non-ASCII characters into a command such as python, the command receives ? instead. The command exits 0 and Codex does ">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/en/c01.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">All symptoms</a><a href="../ja/c01.html" hreflang="ja">日本語</a></header>
+<main>
+<p class="id">C01</p>
+<h1>Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0)</h1>
+<h2>Symptom</h2>
+<p>When Codex CLI pipes text with non-ASCII characters into a command such as python, the command receives ? instead. The command exits 0 and Codex does not notice. This happens on Windows without PowerShell 7, where Codex runs commands in Windows PowerShell 5.1.</p>
+<h2>Check it in 30 seconds</h2>
+<p class="note">Paste into Windows PowerShell 5.1. It only creates files under your %TEMP% folder. If the last line says REPRODUCED, it happens on your machine.</p>
+<pre><code>$d = Join-Path $env:TEMP (&#x27;cc-trap-&#x27; + (Get-Date -Format &#x27;yyyyMMddHHmmss&#x27;)); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = &amp; python -c &quot;import sys; print(&#x27;%d.%d.%d&#x27; % sys.version_info[:3])&quot; 2&gt;$null
+if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)&#x27; } else {
+&quot;python $pyv&quot;
+[IO.File]::WriteAllText(&quot;$d\hex.py&quot;, &#x27;import sys; print(sys.stdin.buffer.read().strip().hex())&#x27;)
+$s = &#x27;Zo&#x27; + [char]0xE9 + &#x27; &#x27; + [char]0x65E5 + [char]0x672C
+$h = $s | python &quot;$d\hex.py&quot;
+&quot;bytes=$h  (UTF-8 would be 5a6fc3a920e697a5e69cac)&quot;
+if ($h -match &#x27;3f&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+}</code></pre>
+<h2>Why it happens</h2>
+<p>Without PowerShell 7, Codex runs commands with powershell.exe (5.1) -Command. PowerShell 5.1 encodes text sent to external commands with $OutputEncoding, which defaults to ASCII, so every non-ASCII character becomes ? (official issue openai/codex #64139). Same mechanism as T04.</p>
+<h2>Fix</h2>
+<p>Set $OutputEncoding to UTF-8 before piping. To have Codex do it, write the rule in the project&#x27;s AGENTS.md (it helps but is not guaranteed).</p>
+<pre><code>$OutputEncoding = [Text.UTF8Encoding]::new($false)
+&#x27;Zoé 日本&#x27; | python -c &quot;import sys; print(sys.stdin.buffer.read().hex())&quot;</code></pre>
+<h2>On the author&#x27;s machine</h2>
+<p class="result">default gave 5a6f3f203f3f (Zo? ??); with $OutputEncoding set to UTF-8, 5a6fc3a920e697a5e69cac (2026-11-27, codex-cli 0.167.0-alpha.3.2, Windows PowerShell 5.1.26100, no PowerShell 7)</p>
+<p class="note">Author&#x27;s machine: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304, Japanese Windows (code page 932). Checked 2026-10-20 to 22.</p>
+<h2>If you searched for</h2>
+<ul class="tags"><li>codex cli windows question marks pipe</li><li>codex exec powershell non-ascii</li><li>codex powershell 5.1 OutputEncoding</li><li>codex windows unicode pipe broken</li><li>openai codex windows mojibake</li></ul>
+<h2>Related</h2>
+<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">cc-win-traps: run all 14 checks at once (free, MIT)</a></li></ul>
+<div class="kit"><p>cc-win-kit bundles the parts that avoid these traps from the start: a write guard (with onFailure: block), an unattended runner, a doctor that scans your files and hook settings, CLAUDE.md templates and the full test suite.</p><p><a href="https://payhip.com/b/bRnDJ">cc-win-kit ($19 on Payhip)</a></p></div>
+<h2>Other symptoms</h2>
+<ul><li><a href="t01.html">PowerShell returns exit code 1 when the script exited with 2</a></li><li><a href="t02.html">The second value passed with -File disappears without an error</a></li><li><a href="t03.html">With -File, a,b stays one string instead of an array</a></li><li><a href="t04.html">Non-ASCII text piped to claude -p, python or git arrives as ?</a></li><li><a href="t05.html">Output from python or claude turns into mojibake in a variable</a></li><li><a href="t06.html">Python works when run by hand but crashes under Task Scheduler or redirection</a></li><li><a href="t07.html">PYTHONIOENCODING is set, but python -I ignores it</a></li><li><a href="t08.html">A .ps1 with non-ASCII text fails to parse or prints mojibake</a></li><li><a href="t09.html">A .cmd / .bat file runs its comment text as commands</a></li><li><a href="t10.html">$variables in a powershell -Command one-liner vanish before it runs</a></li><li><a href="t11.html">Get-ChildItem -Include is ignored and every file comes back</a></li><li><a href="t12.html">Markdown backticks inside &quot;...&quot; turn into newlines and tabs</a></li><li><a href="t13.html">A log that is being written shows 0 bytes</a></li><li><a href="t14.html">claude -p --allowedTools swallows the prompt after it</a></li><li><a href="h01.html">A Claude Code PreToolUse hook lets the write through when it times out</a></li><li><a href="h02.html">A PowerShell hook called with -Command does not block Claude Code</a></li><li><a href="h03.html">No Claude Code hook runs at all (disableAllHooks is still set)</a></li><li><a href="h04.html">A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name</a></li><li><a href="h05.html">A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)</a></li><li><a href="h06.html">Writing through a Windows 8.3 short name makes Claude Code drop the original file name</a></li><li><a href="h07.html">Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with &amp; or a pipe running</a></li><li><a href="h08.html">After claude -w -p exits, the git worktree stays locked and cannot be removed</a></li><li><a href="h09.html">A Claude Code Bash command containing $$( is stopped by the dangerous-removal check</a></li><li><a href="h10.html">On Windows, Claude Code&#x27;s Bash tool turns \\ (two backslashes) into one</a></li><li><a href="h12.html">Claude Code&#x27;s PowerShell tool goes back to the start folder on the next call after cd</a></li><li><a href="h11.html">On Windows, a cd into %TEMP% in Claude Code&#x27;s Bash tool is undone on the next call</a></li><li><a href="h13.html">claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)</a></li><li><a href="h15.html">A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading</a></li><li><a href="h17.html">Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run</a></li><li><a href="h19.html">Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)</a></li><li><a href="h14.html">On Windows, Claude Code&#x27;s Bash tool does not run commands longer than about 7,400 characters (the error says a quote is unmatched)</a></li><li><a href="h21.html">If a hook&#x27;s .ps1 file is missing, writes go through even with onFailure: block</a></li><li><a href="h16.html">On Windows, Claude Code&#x27;s Edit and Write silently change the letter case of the file name</a></li><li><a href="h23.html">A Git Bash hook that compares $PWD with file_path treats even files inside the project as outside on Windows</a></li><li><a href="h18.html">On Windows, Claude Code skips a subfolder&#x27;s CLAUDE.md when the path&#x27;s drive letter is lowercase (c:\)</a></li><li><a href="h20.html">Claude Code&#x27;s PowerShell tool reports success as failure because of an earlier command&#x27;s exit code</a></li><li><a href="h22.html">Claude Code&#x27;s Edit and Write silently strip trailing whitespace outside .md files (tabs-to-spaces just deletes the tabs)</a></li><li><a href="h24.html">Claude Code&#x27;s Grep returns No files found for a */ glob when searching below the working folder</a></li><li><a href="c02.html">Codex CLI on PowerShell 5.1 misreads UTF-8 (no BOM) Japanese files (exit code 0)</a></li></ul>
+</main>
+<footer>By Kamijo Aoto. Covers what was verified on the author&#x27;s machine. Written with AI assistance: Claude Code drafted the text and ran the checks.</footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='Copy';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

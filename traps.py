@@ -1255,6 +1255,63 @@ if (-not $found[0]) { 'CANNOT CHECK (even **/SKILL.md found nothing: check that 
     },
 })
 
+TRAPS.append({
+    "id": "c01",
+    "check": HEAD + r"""[IO.File]::WriteAllText("$d\hex.py", 'import sys; print(sys.stdin.buffer.read().strip().hex())')
+$s = 'Zo' + [char]0xE9 + ' ' + [char]0x65E5 + [char]0x672C
+$h = $s | python "$d\hex.py"
+"bytes=$h  (UTF-8 would be 5a6fc3a920e697a5e69cac)"
+if ($h -match '3f') """ + YES,
+    "ja": {
+        "title": "Codex CLI が PowerShell 5.1 でパイプに渡した日本語が ? になる（終了コード 0）",
+        "search": ["Codex CLI 文字化け ?", "Codex CLI Windows 日本語 パイプ", "codex exec powershell 文字化け", "Codex PowerShell 5.1 OutputEncoding", "codex windows non-ascii pipe question mark"],
+        "symptom": "Codex CLI に、日本語を含む文字列を python などのコマンドへパイプで渡させると、受け取った側には ? が届く。コマンドは終了コード 0 で終わり、Codex も化けに気づかずにそのまま答える。PowerShell 7 が無い Windows で、Codex が Windows PowerShell 5.1 でコマンドを動かすときに起きる。",
+        "why": "PowerShell 7 が無いと、Codex は powershell.exe（5.1）の -Command でコマンドを動かす。5.1 は外部のコマンドに渡す文字を $OutputEncoding で符号化し、その既定が ASCII なので、ASCII にない文字はすべて ? になる（公式 issue openai/codex #64139）。T04 と同じ仕組み。",
+        "fix": "パイプの前に $OutputEncoding を UTF-8 にする。Codex に任せるなら、プロジェクトの AGENTS.md に「パイプの前に $OutputEncoding を UTF-8 にする」と書く（効きやすくなるが、確実ではない）。",
+        "fixcode": "$OutputEncoding = [Text.UTF8Encoding]::new($false)\n'Zoé 日本' | python -c \"import sys; print(sys.stdin.buffer.read().hex())\"",
+        "result": "既定では 5a6f3f203f3f（Zo? ??）、$OutputEncoding を UTF-8 にすると 5a6fc3a920e697a5e69cac（2026-11-27、codex-cli 0.167.0-alpha.3.2、Windows PowerShell 5.1.26100、PowerShell 7 なし）",
+    },
+    "en": {
+        "title": "Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0)",
+        "search": ["codex cli windows question marks pipe", "codex exec powershell non-ascii", "codex powershell 5.1 OutputEncoding", "codex windows unicode pipe broken", "openai codex windows mojibake"],
+        "symptom": "When Codex CLI pipes text with non-ASCII characters into a command such as python, the command receives ? instead. The command exits 0 and Codex does not notice. This happens on Windows without PowerShell 7, where Codex runs commands in Windows PowerShell 5.1.",
+        "why": "Without PowerShell 7, Codex runs commands with powershell.exe (5.1) -Command. PowerShell 5.1 encodes text sent to external commands with $OutputEncoding, which defaults to ASCII, so every non-ASCII character becomes ? (official issue openai/codex #64139). Same mechanism as T04.",
+        "fix": "Set $OutputEncoding to UTF-8 before piping. To have Codex do it, write the rule in the project's AGENTS.md (it helps but is not guaranteed).",
+        "fixcode": "$OutputEncoding = [Text.UTF8Encoding]::new($false)\n'Zoé 日本' | python -c \"import sys; print(sys.stdin.buffer.read().hex())\"",
+        "result": "default gave 5a6f3f203f3f (Zo? ??); with $OutputEncoding set to UTF-8, 5a6fc3a920e697a5e69cac (2026-11-27, codex-cli 0.167.0-alpha.3.2, Windows PowerShell 5.1.26100, no PowerShell 7)",
+    },
+})
+
+TRAPS.append({
+    "id": "c02",
+    "check": HEAD + r"""$s = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+[IO.File]::WriteAllText("$d\note.md", $s, [Text.UTF8Encoding]::new($false))
+$a = Get-Content -LiteralPath "$d\note.md"
+$b = Get-Content -LiteralPath "$d\note.md" -Encoding UTF8
+"default read equals the file: $($a -eq $s); with -Encoding UTF8: $($b -eq $s)"
+if ($a -ne $s -and $b -eq $s) """ + YES,
+    "ja": {
+        "title": "Codex CLI が PowerShell 5.1 で読んだ UTF-8（BOM なし）の日本語が化ける（終了コード 0）",
+        "search": ["Codex CLI 文字化け Get-Content", "Codex CLI Windows 日本語 化ける", "codex 繝 文字化け", "Codex PowerShell 5.1 UTF-8 BOM なし", "codex windows utf-8 without bom mojibake"],
+        "symptom": "Codex CLI に、BOM なしの UTF-8 で保存した日本語のファイル（Markdown など）を読ませると、「繝｡繝｢」のような化けた文字で読む。終了コードは 0 で、Codex は化けたまま「そのまま写した」と答える。",
+        "why": "PowerShell 7 が無いと、Codex は Windows PowerShell 5.1 の Get-Content でファイルを読む。5.1 は BOM の無いファイルを、日本語の Windows では cp932（Shift_JIS）として読むので、UTF-8 の日本語が化ける（公式 issue openai/codex #29085。報告はトルコ語だが日本語でも起きる）。",
+        "fix": "読むときに -Encoding UTF8 を付ける。Codex に任せるなら、プロジェクトの AGENTS.md に「Get-Content は -Encoding UTF8 で」と書く（効きやすくなるが、確実ではない）。",
+        "fixcode": "Get-Content -Encoding UTF8 note.md",
+        "result": "既定の Get-Content は化けた（「メモ」が「繝｡繝｢」に）、-Encoding UTF8 は元のとおり（2026-11-27、codex-cli 0.167.0-alpha.3.2、Windows PowerShell 5.1.26100、コードページ 932）",
+    },
+    "en": {
+        "title": "Codex CLI on PowerShell 5.1 misreads UTF-8 (no BOM) Japanese files (exit code 0)",
+        "search": ["codex cli windows utf-8 mojibake", "codex Get-Content encoding", "codex powershell 5.1 utf-8 without bom", "codex windows non-ascii file garbled", "openai codex windows encoding"],
+        "symptom": "When Codex CLI reads a UTF-8 file without a BOM that contains Japanese (Markdown, for example), it gets garbled characters such as 繝｡繝｢. The command exits 0 and Codex reports that it copied the text as is.",
+        "why": "Without PowerShell 7, Codex reads files with Get-Content in Windows PowerShell 5.1. On Japanese Windows, 5.1 reads a file without a BOM as cp932 (Shift_JIS), so UTF-8 Japanese is garbled (official issue openai/codex #29085; reported for Turkish, also happens with Japanese).",
+        "fix": "Add -Encoding UTF8 when reading. To have Codex do it, write the rule in the project's AGENTS.md (it helps but is not guaranteed).",
+        "fixcode": "Get-Content -Encoding UTF8 note.md",
+        "result": "the default Get-Content garbled the text, -Encoding UTF8 read it correctly (2026-11-27, codex-cli 0.167.0-alpha.3.2, Windows PowerShell 5.1.26100, code page 932)",
+    },
+})
+
+PY_IDS = PY_IDS + ("c01",)
+
 # wrap every check that needs python in the guard (HEAD stays outside)
 for _tr in TRAPS:
     if _tr["id"] in PY_IDS:
