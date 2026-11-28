@@ -18,6 +18,14 @@ if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store st
 """
 PY_IDS = ("t04", "t05", "t06", "t07", "t13")
 
+# Chapters for symptoms whose fix text does not already point to the book.
+BOOK_BY_TRAP = {
+    "t01": 3, "t02": 3, "t03": 3, "t10": 3,
+    "t04": 2, "t05": 2, "t06": 2, "t07": 2, "t08": 2, "t09": 2,
+    "t11": 4, "t12": 4, "t13": 4, "t14": 4,
+    "h01": 5, "h02": 5, "h03": 5, "h04": 5, "h05": 5, "h06": 5, "h08": 12,
+}
+
 TRAPS = [
     {
         "id": "t01",
@@ -52,7 +60,7 @@ $o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\arr.ps1" -Path a b;
 "$o  exit=$e"
 if ($o -eq 'count=1 first=a' -and $e -eq 0) """ + YES,
         "ja": {
-            "title": "-File で渡した2つ目の引数が、エラーなしで消える",
+            "title": "PowerShell の -File で渡した2つ目の引数が、エラーなしで消える",
             "search": ["powershell -File 配列 引数 渡せない", "string[] 引数 1つしか入らない", "powershell 引数 消える"],
             "symptom": "[string[]] の引数に -Path a b と2つ渡したのに、スクリプトには a しか入っていない。エラーも出ず、終了コードも 0。",
             "why": "-File で呼ぶと、引数は文字列のまま1つずつ渡る。-Path に入るのは a だけで、b はどの引数にも当たらない余りとして $args に回り、そのまま捨てられる。",
@@ -61,7 +69,7 @@ if ($o -eq 'count=1 first=a' -and $e -eq 0) """ + YES,
             "result": "count=1 first=a、終了コード 0（[CmdletBinding()] を付けると終了コード 1 で止まった）",
         },
         "en": {
-            "title": "The second value passed with -File disappears without an error",
+            "title": "The second value passed with PowerShell -File disappears without an error",
             "search": ["powershell -File array parameter only first value", "string[] parameter one element", "powershell -File multiple arguments ignored"],
             "symptom": "You pass -Path a b to a [string[]] parameter, but the script only gets a. No error, exit code 0.",
             "why": "With -File, arguments arrive as plain strings. -Path takes a; b matches no parameter, goes into $args and is dropped.",
@@ -77,7 +85,7 @@ $o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\arr.ps1" -Path a,b
 $o
 if ($o -eq 'count=1 first=a,b') """ + YES,
         "ja": {
-            "title": "-File で a,b と渡すと、配列にならず1つの文字列になる",
+            "title": "PowerShell の -File で a,b と渡すと、配列にならず1つの文字列になる",
             "search": ["powershell -File カンマ 配列にならない", "a,b 1つのパス", "指定されたパスが見つかりません カンマ"],
             "symptom": "-Path a,b と書けば2つのパスになるつもりが、a,b という名前のパス1つとして扱われ、「見つからない」になるか、黙って何もしない。",
             "why": "-File で渡した引数は PowerShell の式として解釈されない。カンマで配列を作るのは、PowerShell の中で呼んだときだけ。",
@@ -86,7 +94,7 @@ if ($o -eq 'count=1 first=a,b') """ + YES,
             "result": "count=1 first=a,b",
         },
         "en": {
-            "title": "With -File, a,b stays one string instead of an array",
+            "title": "With PowerShell -File, a,b stays one string instead of an array",
             "search": ["powershell -File comma separated array", "powershell -File comma separated argument array", "cannot find path with comma"],
             "symptom": "You write -Path a,b expecting two paths. The script gets one path named a,b, then reports it missing or silently does nothing.",
             "why": "Arguments given with -File are not parsed as PowerShell expressions. The comma makes an array only when you call the script from inside PowerShell.",
@@ -103,7 +111,7 @@ $h = $s | python "$d\hex.py"
 "bytes=$h  (UTF-8 would be e697a5e69cac)"
 if ($h -match '^(efbbbf)?(3f)+$') """ + YES,
         "ja": {
-            "title": "パイプで渡した日本語が ? になる（claude -p・python・git）",
+            "title": "PowerShell のパイプで渡した日本語が ? になる（claude -p・python・git）",
             "search": ["PowerShell パイプ 日本語 ?になる", "claude -p 日本語 文字化け", "python stdin 日本語 ??", "$OutputEncoding"],
             "symptom": "PowerShell から \"日本語\" | claude -p のように渡すと、相手には ?? が届く。エラーは出ない。Claude なら「文字化けしていたので推測した」と言いながら、指示と違うことをする。",
             "why": "Windows PowerShell 5.1 は、ネイティブのプログラムへパイプで渡す文字を $OutputEncoding で符号化する。既定は ASCII なので、日本語は ? になる。受け取る側の [Console]::OutputEncoding とは別の設定。",
@@ -112,7 +120,7 @@ if ($h -match '^(efbbbf)?(3f)+$') """ + YES,
             "result": "バイト 3f3f（? が2つ）",
         },
         "en": {
-            "title": "Non-ASCII text piped to claude -p, python or git arrives as ?",
+            "title": "Non-ASCII text piped through PowerShell to claude -p, python or git arrives as ?",
             "search": ["powershell pipe unicode question marks", "claude -p non-ascii prompt garbled", "powershell pipe unicode to python question marks", "$OutputEncoding ascii"],
             "symptom": "You pipe text with accents, CJK or emoji into claude -p (or python, git) and the program receives ?. No error. Claude may say the prompt looked garbled and guess.",
             "why": "Windows PowerShell 5.1 encodes text piped into native programs with $OutputEncoding, which defaults to ASCII. Anything outside ASCII becomes ?. It is a different setting from [Console]::OutputEncoding, which only affects reading output.",
@@ -129,7 +137,7 @@ $want = [string][char]0x65E5 + [char]0x672C
 "read with code page $([Console]::OutputEncoding.CodePage): " + (($s.ToCharArray() | ForEach-Object { '{0:X4}' -f [int]$_ }) -join ' ') + '  (want 65E5 672C)'
 if ($s -ne $want) """ + YES,
         "ja": {
-            "title": "python や claude の出力を変数に入れると文字化けする",
+            "title": "PowerShell で python や claude の出力を変数に入れると文字化けする",
             "search": ["PowerShell 出力 文字化け 変数", "譌･譛ｬ", "python 出力 文字化け PowerShell", "Console OutputEncoding"],
             "symptom": "画面に直接出すと読めるのに、$x = python ... で受け取ると「譌･譛ｬ」のような文字になる。ログに書くと、そのまま化けて残る。",
             "why": "PowerShell はネイティブのプログラムの出力を [Console]::OutputEncoding（日本語の Windows では既定 932）で読む。相手が UTF-8 で書いていると、読み違える。",
@@ -138,7 +146,7 @@ if ($s -ne $want) """ + YES,
             "result": "2文字が別の4文字になった",
         },
         "en": {
-            "title": "Output from python or claude turns into mojibake in a variable",
+            "title": "Output from python or claude turns into mojibake in a PowerShell variable",
             "search": ["powershell native command output encoding wrong", "powershell capture utf-8 output mojibake", "[Console]::OutputEncoding utf8"],
             "symptom": "Printed straight to the screen it looks fine, but $x = python ... holds garbled characters, and so does the log you write from it.",
             "why": "PowerShell decodes a native program's output with [Console]::OutputEncoding, which defaults to the OEM code page (437, 850, 932 ...). Output from a program that writes UTF-8 is decoded incorrectly.",
@@ -155,7 +163,7 @@ $err = [IO.File]::ReadAllText("$d\err.txt")
 "exit=$e, UnicodeEncodeError=$($err -match 'UnicodeEncodeError')"
 if ($e -ne 0 -and $err -match 'UnicodeEncodeError') """ + YES,
         "ja": {
-            "title": "手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる",
+            "title": "手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ UnicodeEncodeError（cp932）で落ちる",
             "search": ["UnicodeEncodeError cp932", "タスクスケジューラ python 動かない", "python リダイレクト エラー", "'cp932' codec can't encode character"],
             "symptom": "画面で動かすと通るスクリプトが、> ファイル へのリダイレクトやタスクスケジューラ経由のときだけ UnicodeEncodeError で落ちる。— や ✓ のような記号を print しただけで起きる。",
             "why": "Windows の Python は、出力先が画面なら Unicode をそのまま書けるが、ファイルやパイプだと既定のコードページ（日本語なら cp932）で符号化する。その表に無い文字で落ちる。なお Python 3.15（2026年10月9日公開）は UTF-8 を既定にしたので（PEP 686）、3.15 以降では起きない見込み（作者の PC は 3.13.7 で、3.15 では試していない。確かめるコードは最初に Python の版を出す）。",
@@ -164,7 +172,7 @@ if ($e -ne 0 -and $err -match 'UnicodeEncodeError') """ + YES,
             "result": "UnicodeEncodeError、終了コード 1",
         },
         "en": {
-            "title": "Python works when run by hand but crashes under Task Scheduler or redirection",
+            "title": "Python works by hand but crashes with UnicodeEncodeError (cp932) under Task Scheduler or redirection",
             "search": ["UnicodeEncodeError charmap codec can't encode character", "python works manually fails in task scheduler", "python redirect output unicode error windows"],
             "symptom": "A script that runs fine in a terminal crashes with UnicodeEncodeError when its output is redirected to a file or it runs from Task Scheduler. Printing a check mark (U+2713) is enough.",
             "why": "On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it. Python 3.15 (released 2026-10-09) made UTF-8 the default (PEP 686), so this is not expected on 3.15 or later (the author tested 3.13.7, not 3.15; the check prints your Python version first).",
@@ -210,7 +218,7 @@ $o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\nobom.ps1"
 "got $o (want $want)"
 if ($o -ne $want) """ + YES,
         "ja": {
-            "title": "日本語入りの .ps1 が、構文エラーになるか文字化けして動く",
+            "title": "PowerShell 5.1 で日本語入りの .ps1（BOM なし UTF-8）が、構文エラーになるか文字化けして動く",
             "search": ["ps1 日本語 文字化け", "ps1 BOM 必要", "PowerShell 5.1 UTF-8 構文エラー", "式またはステートメントのトークン"],
             "symptom": "エディタでは正しく見える .ps1 が、実行すると「文字列に終端記号がありません」などの構文エラーになるか、エラーなしで化けた文字を出す。",
             "why": "Windows PowerShell 5.1 は、BOM の無い .ps1 を UTF-8 ではなく ANSI コードページ（日本語なら 932）として読む。今のエディタの多くは BOM なしの UTF-8 で保存する。",
@@ -219,7 +227,7 @@ if ($o -ne $want) """ + YES,
             "result": "出力が元と違った",
         },
         "en": {
-            "title": "A .ps1 with non-ASCII text fails to parse or prints mojibake",
+            "title": "A UTF-8 .ps1 with non-ASCII text and no BOM fails to parse or prints mojibake in PowerShell 5.1",
             "search": ["powershell 5.1 utf-8 without bom", "ps1 encoding problem accented characters", "the string is missing the terminator utf-8"],
             "symptom": "A .ps1 that looks right in your editor fails with a parse error such as \"The string is missing the terminator\", or runs and prints garbled text.",
             "why": "Windows PowerShell 5.1 reads a .ps1 without a BOM using the ANSI code page, not UTF-8. Most editors now save UTF-8 without a BOM.",
@@ -311,7 +319,7 @@ if ($n -eq 2) """ + YES,
 $t
 if ($t -match "`n" -or $t -match "`t") """ + YES,
         "ja": {
-            "title": "\"...\" に書いた Markdown のバッククォートで、文字が消えて改行が入る",
+            "title": "PowerShell の \"...\" に書いた Markdown のバッククォートで、文字が消えて改行が入る",
             "search": ["PowerShell バッククォート 消える", "ヒアストリング Markdown 文字化け", "PowerShell `n 改行 勝手に"],
             "symptom": "\"...\" や @\"...\"@ に `night-shift` のようなコード表記を書くと、n が消えて改行になる。`true` なら t が消えてタブ。エラーは出ず、ファイルの一部が欠けるだけ。",
             "why": "バッククォートは PowerShell のエスケープ文字。`n は改行、`t はタブ、`0 は NUL として解釈される。",
@@ -320,7 +328,7 @@ if ($t -match "`n" -or $t -match "`t") """ + YES,
             "result": "改行が入った",
         },
         "en": {
-            "title": "Markdown backticks inside \"...\" turn into newlines and tabs",
+            "title": "Markdown backticks inside PowerShell \"...\" turn into newlines and tabs",
             "search": ["powershell backtick n newline in string", "powershell markdown backtick disappearing", "powershell string missing characters backtick"],
             "symptom": "You write `night-shift` or `true` in a \"...\" string or @\"...\"@ here-string. The n or t disappears and a newline or tab appears. No error; part of the file is just missing.",
             "why": "The backtick is PowerShell's escape character: `n is a newline, `t a tab, `0 a NUL.",
@@ -343,7 +351,7 @@ $p.WaitForExit(); Remove-Item -LiteralPath $ad -Recurse -Force
 "listed=$listed real=$real"
 if ($listed -ne $real) """ + YES,
         "ja": {
-            "title": "書き込み中のログが 0 バイトに見える",
+            "title": "Windows の PowerShell で書き込み中のログが 0 バイトに見える",
             "search": ["ログ 0バイト 書き込み中", "Get-ChildItem Length 0 なのに", "ファイルサイズ 更新されない Windows"],
             "symptom": "常駐プロセスが書いているログを Get-ChildItem で見ると 0 バイト。「何も出ていない」と判断したら、実際は数 MB 書かれていた。",
             "why": "Windows は、開いたまま書き続けているファイルの一覧上のサイズを、すぐには更新しないことがある（作者の PC では AppData の下で再現）。",
@@ -352,7 +360,7 @@ if ($listed -ne $real) """ + YES,
             "result": "一覧では 0、実際は 5,000,000 バイト",
         },
         "en": {
-            "title": "A log that is being written shows 0 bytes",
+            "title": "A log that is being written shows 0 bytes in PowerShell on Windows",
             "search": ["file size shows 0 while writing windows", "powershell file size 0 while writing", "log file size not updating windows"],
             "symptom": "A log written by a running process shows 0 bytes in Get-ChildItem. You conclude nothing was written; in fact it holds megabytes.",
             "why": "Windows may not update the listed size of a file that is still open for writing (reproduced under AppData on the author's machine).",
@@ -399,7 +407,7 @@ $w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
 "hook denies after 15 s, timeout 3 s: hook called=$c, written=$w"
 if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }""",
         "ja": {
-            "title": "Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す",
+            "title": "Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す",
             "search": ["Claude Code フック 効かない", "PreToolUse フック タイムアウト", "Claude Code hook 素通り", "onFailure block"],
             "symptom": "書き込みを拒否するフックを入れてあるのに、ファイルが書かれた。画面にも結果の JSON にもエラーや警告は出ない。フックの答えが時間制限より遅れたときだけ起きる。",
             "why": "既定では、フックが時間切れ・異常終了・起動失敗になると、Claude Code はツールの呼び出しを止めずに先へ進める。公式の hooks リファレンスにも「止まったフックを関所として当てにしない」とある。ただし Git Bash が入っていない Windows では、onFailure を付けていないフックでも、失敗や時間切れで止まる側に倒れることがある（同じ説明書）。作者の PC には Git Bash が入っている。",

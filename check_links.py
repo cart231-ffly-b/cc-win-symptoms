@@ -5,6 +5,7 @@ import pathlib
 import re
 import sys
 
+from build import GUIDES
 from traps import TRAPS
 
 DOCS = pathlib.Path(__file__).resolve().parent / "docs"
@@ -14,7 +15,7 @@ NOT_PAGES = re.compile(r"^(google[0-9a-f]+|privacy)\.html$")
 pages = sorted(p for p in DOCS.rglob("*.html") if not NOT_PAGES.match(p.relative_to(DOCS).as_posix()))
 scoreboard_pages = {DOCS / "scoreboard" / name for name in ("index.html", "ja.html")}
 scoreboard_exists = (DOCS / "scoreboard").is_dir()
-want = 1 + 2 * (1 + len(TRAPS)) + (len(scoreboard_pages) if scoreboard_exists else 0)
+want = 1 + 2 * (1 + len(TRAPS)) + len(GUIDES) + (len(scoreboard_pages) if scoreboard_exists else 0)
 if len(pages) != want:
     problems.append(f"expected {want} pages, found {len(pages)}")
 
@@ -28,11 +29,14 @@ for p in pages:
     for href in re.findall(r'(?:href|src)="([^"]+)"', text):
         if href.startswith(("http://", "https://", "#", "mailto:")):
             continue
-        target = (p.parent / href).resolve()
+        path, _, fragment = href.partition("#")
+        target = (p.parent / path).resolve()
         if not scoreboard_exists and target in scoreboard_pages:
             continue  # A fresh checkout can precede the first weekly run.
         if not target.exists():
             problems.append(f"{rel}: broken link {href}")
+        elif fragment and f'id="{fragment}"' not in target.read_text(encoding="utf-8"):
+            problems.append(f"{rel}: missing link target {href}")
     if re.search(r"[가-힣]", text):
         problems.append(f"{rel}: Hangul found (generated text check)")
 
@@ -40,6 +44,9 @@ for tr in TRAPS:
     for lang in ("ja", "en"):
         if not (DOCS / lang / f"{tr['id']}.html").exists():
             problems.append(f"missing {lang}/{tr['id']}.html")
+for filename in GUIDES:
+    if not (DOCS / "ja" / filename).is_file():
+        problems.append(f"missing ja/{filename}")
 
 for line in problems:
     print("PROBLEM", line)

@@ -21,4 +21,9 @@ ol.list{padding:0;list-style:none}
 ol.list li{border-bottom:1px solid var(--line);padding:12px 0}
 ol.list a{text-decoration:none;font-weight:600}
 .kit{margin-top:2.5em;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.next-steps{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:1em 0}
+.next-steps p{margin:.4em 0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;vertical-align:top;padding:8px;border-bottom:1px solid var(--line)}
 footer{margin:40px auto;color:var(--muted);font-size:13px}

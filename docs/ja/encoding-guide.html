@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Windows の日本語文字化けまとめ｜PowerShell・Python・Claude Code・Codex CLI</title>
+<meta name="description" content="パイプで日本語が ? になる、cp932 で UnicodeEncodeError が出るなど、見た目から原因と直し方を探せます。">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/encoding-guide.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Windows の日本語文字化けまとめ｜PowerShell・Python・Claude Code・Codex CLI">
+<meta property="og:description" content="パイプで日本語が ? になる、cp932 で UnicodeEncodeError が出るなど、見た目から原因と直し方を探せます。">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/encoding-guide.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://cart231-ffly-b.github.io/cc-win-symptoms/#website", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/", "name": "When Claude Code breaks silently on Windows"}, {"@type": "CollectionPage", "name": "Windows の日本語文字化けまとめ｜PowerShell・Python・Claude Code・Codex CLI", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/encoding-guide.html", "inLanguage": "ja", "isPartOf": {"@id": "https://cart231-ffly-b.github.io/cc-win-symptoms/#website"}}]}</script>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">一覧へ</a></header>
+<main>
+<h1>Windows の日本語文字化けまとめ｜PowerShell・Python・Claude Code・Codex CLI</h1>
+<p class="lead">パイプで日本語が ? になる、cp932 で UnicodeEncodeError が出るなど、見た目から原因と直し方を探せます。</p>
+<p>手元の PC でどの症状が再現するかをまとめて確かめる。<a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
+<h2>文字化けの見た目から探す</h2>
+<div class="table-wrap"><table>
+<thead><tr><th scope="col">見た目</th><th scope="col">症状ページ</th><th scope="col">原因と直し方</th></tr></thead>
+<tbody>
+<tr><td>? になる</td><td><a href="t04.html">PowerShell のパイプで渡した日本語が ? になる（claude -p・python・git）</a></td><td><p>Windows PowerShell 5.1 は、ネイティブのプログラムへパイプで渡す文字を $OutputEncoding で符号化する。既定は ASCII なので、日本語は ? になる。</p><p>長い日本語は UTF-8 のファイルに書き、ASCII だけの指示で「このファイルを読んで」と渡す。保険として $OutputEncoding を UTF-8 にする。</p></td></tr>
+<tr><td>? になる</td><td><a href="c01.html">Codex CLI が PowerShell 5.1 でパイプに渡した日本語が ? になる（終了コード 0）</a></td><td><p>PowerShell 7 が無いと、Codex は powershell.exe（5.1）の -Command でコマンドを動かす。5.1 は外部のコマンドに渡す文字を $OutputEncoding で符号化し、その既定が ASCII なので、ASCII にない文字はすべて ? になる（公式 issue openai/codex #64139）。</p><p>パイプの前に $OutputEncoding を UTF-8 にする。Codex に任せるなら、プロジェクトの AGENTS.md に「パイプの前に $OutputEncoding を UTF-8 にする」と書く（効きやすくなるが、確実ではない）。</p></td></tr>
+<tr><td>「譌･譛ｬ」「繝｡繝｢」のように化ける</td><td><a href="t05.html">PowerShell で python や claude の出力を変数に入れると文字化けする</a></td><td><p>PowerShell はネイティブのプログラムの出力を [Console]::OutputEncoding（日本語の Windows では既定 932）で読む。相手が UTF-8 で書いていると、読み違える。</p><p>出力を読む側で [Console]::OutputEncoding を UTF-8 にする。送る側の Python は PYTHONIOENCODING を utf-8 に（次の T06）。両方そろえる。</p></td></tr>
+<tr><td>「譌･譛ｬ」「繝｡繝｢」のように化ける</td><td><a href="c02.html">Codex CLI が PowerShell 5.1 で読んだ UTF-8（BOM なし）の日本語が化ける（終了コード 0）</a></td><td><p>PowerShell 7 が無いと、Codex は Windows PowerShell 5.1 の Get-Content でファイルを読む。</p><p>読むときに -Encoding UTF8 を付ける。Codex に任せるなら、プロジェクトの AGENTS.md に「Get-Content は -Encoding UTF8 で」と書く（効きやすくなるが、確実ではない）。</p></td></tr>
+<tr><td>UnicodeEncodeError で落ちる</td><td><a href="t06.html">手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ UnicodeEncodeError（cp932）で落ちる</a></td><td><p>Windows の Python は、出力先が画面なら Unicode をそのまま書けるが、ファイルやパイプだと既定のコードページ（日本語なら cp932）で符号化する。その表に無い文字で落ちる。</p><p>送る側で PYTHONIOENCODING=utf-8 を設定する。アプリで直すなら、画面でないときだけ sys.stdout.reconfigure(encoding=&#x27;utf-8&#x27;)。</p></td></tr>
+<tr><td>UnicodeEncodeError で落ちる</td><td><a href="t07.html">PYTHONIOENCODING を設定したのに、python -I だと効かない</a></td><td><p>-I（隔離モード）は PYTHON で始まる環境変数をすべて無視する。</p><p>-I を外すか、スクリプトの中で sys.stdout.reconfigure(encoding=&#x27;utf-8&#x27;) を呼ぶ。</p></td></tr>
+<tr><td>構文エラーになるか、化けた文字を出す</td><td><a href="t08.html">PowerShell 5.1 で日本語入りの .ps1（BOM なし UTF-8）が、構文エラーになるか文字化けして動く</a></td><td><p>Windows PowerShell 5.1 は、BOM の無い .ps1 を UTF-8 ではなく ANSI コードページ（日本語なら 932）として読む。今のエディタの多くは BOM なしの UTF-8 で保存する。</p><p>日本語を含む .ps1 は UTF-8（BOM 付き）で保存する。または .ps1 を ASCII だけで書き、日本語は [char]0x65E5 のように組み立てる。</p></td></tr>
+<tr><td>日本語のフォルダで拒否フックが素通りする</td><td><a href="h04.html">Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</a></td><td><p>Claude Code はフックの標準入力に UTF-8 の JSON を送る。日本語 Windows の Python は、標準入力が端末でないとき cp932 で読むので、json.load(sys.stdin) が日本語のパスで JSONDecodeError（Invalid \escape）になる。</p><p>標準入力をバイト列のまま読んで UTF-8 で解く。あわせて &quot;onFailure&quot;: &quot;block&quot; を付ける（直す前のフックのままでも、これで止まった）。拒否の理由は ASCII で出す（json.dumps の既定のまま）。</p></td></tr>
+</tbody>
+</table></div>
+<h2>文字コードの設定とファイル形式</h2>
+<div class="table-wrap"><table>
+<thead><tr><th scope="col">設定・形式</th><th scope="col">役割と使い方</th></tr></thead>
+<tbody>
+<tr><td><code>$OutputEncoding</code></td><td>Windows PowerShell 5.1 は、ネイティブのプログラムへパイプで渡す文字を $OutputEncoding で符号化する。</td></tr>
+<tr><td><code>[Console]::OutputEncoding</code></td><td>PowerShell はネイティブのプログラムの出力を [Console]::OutputEncoding（日本語の Windows では既定 932）で読む。</td></tr>
+<tr><td><code>PYTHONIOENCODING</code></td><td>送る側で PYTHONIOENCODING=utf-8 を設定する。</td></tr>
+<tr><td><code>BOM</code></td><td>日本語を含む .ps1 は UTF-8（BOM 付き）で保存する。</td></tr>
+</tbody>
+</table></div>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">PowerShell・Python・cmd の再現スクリプト cc-win-traps（無料、MIT）</a></p>
+</main>
+<footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code のフックが効かない・素通りする原因と対策まとめ</title>
+<meta name="description" content="PreToolUse の拒否が素通りする、settings.json のフックが読まれない、パス判定がずれるときの確認手順。">
+<link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/hooks-guide.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Claude Code のフックが効かない・素通りする原因と対策まとめ">
+<meta property="og:description" content="PreToolUse の拒否が素通りする、settings.json のフックが読まれない、パス判定がずれるときの確認手順。">
+<meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/hooks-guide.html">
+<meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "WebSite", "@id": "https://cart231-ffly-b.github.io/cc-win-symptoms/#website", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/", "name": "When Claude Code breaks silently on Windows"}, {"@type": "CollectionPage", "name": "Claude Code のフックが効かない・素通りする原因と対策まとめ", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/hooks-guide.html", "inLanguage": "ja", "isPartOf": {"@id": "https://cart231-ffly-b.github.io/cc-win-symptoms/#website"}}]}</script>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="index.html">一覧へ</a></header>
+<main>
+<h1>Claude Code のフックが効かない・素通りする原因と対策まとめ</h1>
+<p class="lead">PreToolUse の拒否が素通りする、settings.json のフックが読まれない、パス判定がずれるときの確認手順。</p>
+<h2>起動しない</h2>
+<div class="table-wrap"><table>
+<thead><tr><th scope="col">症状ページ</th><th scope="col">起きること</th></tr></thead>
+<tbody>
+<tr><td><a href="h03.html">Claude Code のフックが1つも動かない（disableAllHooks が残っている）</a></td><td>書き込みを止めるフックも、通知のフックも、何も動かない。エラーも警告も出ない。試しに一時的に止めたつもりの設定が、そのまま残っていることがある。</td></tr>
+<tr><td><a href="h05.html">Claude Code のフックのパスを \ で書くと、フックが起動せず書き込みが通る（終了コード 127）</a></td><td>書き込みを拒否するフックを入れたのに、ファイルが書かれた。フックのスクリプトは、手で動かすと確かに拒否する。設定の command に C:\...\deny.cmd のような \ 区切りのパスか、空白入りのパスを囲まずに書いている。エラーも警告も出ない。</td></tr>
+<tr><td><a href="h17.html">リポジトリのサブフォルダで Claude Code を起動すると、ルートの .claude/settings.json のフックが効かない</a></td><td>リポジトリの直下の .claude/settings.json に入れた書き込みを止めるフックが、ときどき動かない。動かなかった回は、エディタの端末やスクリプトが、リポジトリの下のフォルダで claude を起動していた。エラーも警告も出ない。</td></tr>
+<tr><td><a href="h21.html">フックの .ps1 が見つからないと、onFailure: block でも書き込みが通る</a></td><td>書き込みを止めるフックを powershell.exe -File &lt;スクリプト&gt; で呼び、onFailure: block も付けていたのに、スクリプトを移したあとから書き込みが止まらない。エラーも出ない。</td></tr>
+</tbody>
+</table></div>
+<h2>拒否が通らない</h2>
+<div class="table-wrap"><table>
+<thead><tr><th scope="col">症状ページ</th><th scope="col">起きること</th></tr></thead>
+<tbody>
+<tr><td><a href="h01.html">Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す</a></td><td>書き込みを拒否するフックを入れてあるのに、ファイルが書かれた。画面にも結果の JSON にもエラーや警告は出ない。フックの答えが時間制限より遅れたときだけ起きる。</td></tr>
+<tr><td><a href="h02.html">PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする</a></td><td>exit 2 で拒否する PowerShell スクリプトをフックにしたのに、書き込みが通る。スクリプトを手で動かすと確かに 2 を返す。</td></tr>
+<tr><td><a href="h04.html">Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</a></td><td>書き込みを全部拒否するフックを Python で書いた。英数字のフォルダでは止まるのに、名前が日本語のフォルダへの書き込みは通る。エラーも警告も出ない。</td></tr>
+</tbody>
+</table></div>
+<h2>パス判定がずれる</h2>
+<div class="table-wrap"><table>
+<thead><tr><th scope="col">症状ページ</th><th scope="col">起きること</th></tr></thead>
+<tbody>
+<tr><td><a href="h19.html">ジャンクションの下で Claude Code を起動すると、作業フォルダが本当のパスに置き換わる（フックにも）</a></td><td>mklink /J で作ったジャンクションの下のフォルダで Claude Code を起動したのに、Claude が言う作業フォルダも、フックに届く cwd と file_path も、ジャンクションをたどった先の本当のパスになっている。起動したときの綴りで書いたフックの許可の範囲が、当たらなくなる。</td></tr>
+<tr><td><a href="h23.html">Git Bash のフックで $PWD と file_path を比べると、Windows ではプロジェクトの中まで「外」になる</a></td><td>Linux で動いていた「プロジェクトの外には書かせない」bash のフックが、Windows では中への書き込みまで全部止める。.claude/settings.json を直そうとしても止められる。</td></tr>
+</tbody>
+</table></div>
+<h2>設定を確かめる手順</h2>
+<ol>
+<li>その行を消す（または false にする）。確かめるコードの最初の行に、あなたの設定ファイルごとの値が出る。（<a href="h03.html">H03</a>）</li>
+<li>必ず止めたいフックはユーザーの設定（~/.claude/settings.json）に入れる。無人のスクリプトは Push-Location でリポジトリの直下に移ってから claude -p を呼ぶ。（<a href="h17.html">H17</a>）</li>
+<li>パスは / 区切りで書き、全体を &quot; で囲む（JSON の中では \&quot;）。（<a href="h05.html">H05</a>）</li>
+<li>PowerShell のフックは -File で呼ぶ。（<a href="h02.html">H02</a>）</li>
+<li>フックのコマンドの中でスクリプトがあるかを確かめ、無ければ exit 1 で終わらせる。最後に exit $LASTEXITCODE を書けば、スクリプトの exit 2 もそのまま返る。（<a href="h21.html">H21</a>）</li>
+<li>関所のフックに &quot;onFailure&quot;: &quot;block&quot; を付ける（Claude Code 2.1.295 以降）。付けたら、フックが動かない PC では書き込みが全部止まるので、1回試す。（<a href="h01.html">H01</a>）</li>
+</ol>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">本の5章で安全装置の設計と実装を読む（Zenn・全章 1,200円／0〜4章は無料）</a> · <a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
+</main>
+<footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
+<script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
+function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
+</body>
+</html>

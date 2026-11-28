@@ -3,24 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す | Windows で Claude Code が黙って壊れるとき</title>
-<meta name="description" content="書き込みを拒否するフックを入れてあるのに、ファイルが書かれた。画面にも結果の JSON にもエラーや警告は出ない。フックの答えが時間制限より遅れたときだけ起きる。">
+<title>Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す | Windows で Claude Code が黙って壊れるとき</title>
+<meta name="description" content="Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す。確認コードと直し方を掲載。">
 <link rel="canonical" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h01.html">
 <link rel="alternate" hreflang="ja" href="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h01.html">
 <link rel="alternate" hreflang="en" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h01.html">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す | Windows で Claude Code が黙って壊れるとき">
-<meta property="og:description" content="書き込みを拒否するフックを入れてあるのに、ファイルが書かれた。画面にも結果の JSON にもエラーや警告は出ない。フックの答えが時間制限より遅れたときだけ起きる。">
+<link rel="alternate" hreflang="x-default" href="https://cart231-ffly-b.github.io/cc-win-symptoms/en/h01.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す | Windows で Claude Code が黙って壊れるとき">
+<meta property="og:description" content="Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す。確認コードと直し方を掲載。">
 <meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h01.html">
 <meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
 <meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す", "description": "Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す。確認コードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h01.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h01.html"}]}]}</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
 <header><a href="index.html">一覧へ</a><a href="../en/h01.html" hreflang="en">English</a></header>
 <main>
 <p class="id">H01</p>
-<h1>Claude Code の PreToolUse フックが、時間切れになると書き込みを止めずに通す</h1>
+<h1>Claude Code の PreToolUse フックが、タイムアウト（時間切れ）になると書き込みを止めずに通す</h1>
+<p class="lead">Claude Code フック 効かない · PreToolUse フック タイムアウト</p>
 <h2>症状</h2>
 <p>書き込みを拒否するフックを入れてあるのに、ファイルが書かれた。画面にも結果の JSON にもエラーや警告は出ない。フックの答えが時間制限より遅れたときだけ起きる。</p>
 <h2>30秒で確かめる</h2>
@@ -37,21 +40,29 @@ $w = Test-Path &quot;$d\written.txt&quot;; $c = Test-Path &quot;$d\called.txt&qu
 if (-not $c) { &#x27;CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)&#x27; } elseif ($w) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</code></pre>
 <h2>なぜ起きるか</h2>
 <p>既定では、フックが時間切れ・異常終了・起動失敗になると、Claude Code はツールの呼び出しを止めずに先へ進める。公式の hooks リファレンスにも「止まったフックを関所として当てにしない」とある。ただし Git Bash が入っていない Windows では、onFailure を付けていないフックでも、失敗や時間切れで止まる側に倒れることがある（同じ説明書）。作者の PC には Git Bash が入っている。</p>
-<h2>直し方</h2>
+<h2>直し方（onFailure: block）</h2>
 <p>関所のフックに &quot;onFailure&quot;: &quot;block&quot; を付ける（Claude Code 2.1.295 以降）。付けたら、フックが動かない PC では書き込みが全部止まるので、1回試す。時間制限は短くしすぎない。</p>
 <pre><code>{&quot;type&quot;: &quot;command&quot;, &quot;command&quot;: &quot;...&quot;, &quot;timeout&quot;: 60, &quot;onFailure&quot;: &quot;block&quot;}</code></pre>
+<div class="next-steps">
+<p>この PC でほかの症状も起きるか調べる。<a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
+<p>再発を防ぐ設計と実装を読む。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
+</div>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">本の5章で安全装置の設計と実装を読む（Zenn・全章 1,200円／0〜4章は無料）</a></p>
 <h2>作者の PC での結果</h2>
 <p class="result">15秒待って拒否するフックを時間制限3秒で試し、2回とも書き込まれた。onFailure: block を足すと止まった</p>
 <p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>
 <h2>こんな言葉で探した人へ</h2>
 <ul class="tags"><li>Claude Code フック 効かない</li><li>PreToolUse フック タイムアウト</li><li>Claude Code hook 素通り</li><li>onFailure block</li></ul>
 <h2>関連</h2>
-<ul><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">14か所をまとめて試すスクリプト cc-win-traps（無料、MIT）</a></li></ul>
-<div class="kit"><p>この穴を最初から踏まないようにした部品（書き込み先を絞る安全装置〈onFailure: block 付き〉、夜の無人実行、ファイルとフックの設定を調べる健康診断、CLAUDE.md の型、試験一式）は cc-win-kit にまとめています。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">部品の実装と設計を書いた本（Zenn、1,200円。0〜4章は無料）</a></p></div>
+<ul><li><a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></li><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">PowerShell・Python・cmd の再現スクリプト cc-win-traps（無料、MIT）</a></li></ul>
+<div class="kit"><p>安全装置、無人実行、CLAUDE.md の型の実装と設計は、Zenn の本にまとめています（全章 1,200円。0〜4章は無料）。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p></div>
 <h2>ほかの症状</h2>
-<ul><li><a href="t01.html">PowerShell の終了コードが、2 を返したのに 1 になる</a></li><li><a href="t02.html">-File で渡した2つ目の引数が、エラーなしで消える</a></li><li><a href="t03.html">-File で a,b と渡すと、配列にならず1つの文字列になる</a></li><li><a href="t04.html">パイプで渡した日本語が ? になる（claude -p・python・git）</a></li><li><a href="t05.html">python や claude の出力を変数に入れると文字化けする</a></li><li><a href="t06.html">手で動かすと通る Python が、タスクスケジューラやリダイレクトのときだけ落ちる</a></li><li><a href="t07.html">PYTHONIOENCODING を設定したのに、python -I だと効かない</a></li><li><a href="t08.html">日本語入りの .ps1 が、構文エラーになるか文字化けして動く</a></li><li><a href="t09.html">.cmd / .bat のコメントが、コマンドとして実行される</a></li><li><a href="t10.html">powershell -Command の1行に書いた $変数 が、呼ぶ前に消える</a></li><li><a href="t11.html">Get-ChildItem の -Include が効かず、全部のファイルが返る</a></li><li><a href="t12.html">&quot;...&quot; に書いた Markdown のバッククォートで、文字が消えて改行が入る</a></li><li><a href="t13.html">書き込み中のログが 0 バイトに見える</a></li><li><a href="t14.html">claude -p --allowedTools の後ろに書いたプロンプトが飲み込まれる</a></li><li><a href="h02.html">PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする</a></li><li><a href="h03.html">Claude Code のフックが1つも動かない（disableAllHooks が残っている）</a></li><li><a href="h04.html">Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</a></li><li><a href="h05.html">Claude Code のフックのパスを \ で書くと、フックが起動せず書き込みが通る（終了コード 127）</a></li><li><a href="h06.html">Windows の短い名前（8.3）で Claude Code に Write・Edit させると、元のファイル名が消える</a></li><li><a href="h07.html">Claude Code で裏の Bash を TaskStop で止めても、&amp; やパイプで動かしたプロセスが残る</a></li><li><a href="h08.html">claude -w -p が終わったあとも、git の worktree のロックが残って消せない</a></li><li><a href="h09.html">Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる</a></li><li><a href="h10.html">Windows の Claude Code の Bash ツールで、\\（バックスラッシュ2つ）が \ 1つになる</a></li><li><a href="h12.html">Claude Code の PowerShell ツールで、cd したフォルダが次の呼び出しで元に戻る</a></li><li><a href="h11.html">Windows の Claude Code の Bash ツールで、%TEMP% の下への cd が次の呼び出しで取り消される</a></li><li><a href="h13.html">claude -p の --json-schema が、道具を絞った --agent を付けると黙って効かない（成功のまま）</a></li><li><a href="h15.html">サブフォルダの CLAUDE.md を一部だけ Read すると、残りが黙って読み込まれなくなる</a></li><li><a href="h17.html">リポジトリのサブフォルダで Claude Code を起動すると、ルートの .claude/settings.json のフックが効かない</a></li><li><a href="h19.html">ジャンクションの下で Claude Code を起動すると、作業フォルダが本当のパスに置き換わる（フックにも）</a></li><li><a href="h14.html">Windows の Claude Code の Bash ツールは、7,400 文字ほどを超えるコマンドを動かさない（エラーは「引用符が閉じていない」）</a></li><li><a href="h21.html">フックの .ps1 が見つからないと、onFailure: block でも書き込みが通る</a></li><li><a href="h16.html">Windows の Claude Code で Edit・Write すると、ファイル名の大文字小文字が黙って変わる</a></li><li><a href="h23.html">Git Bash のフックで $PWD と file_path を比べると、Windows ではプロジェクトの中まで「外」になる</a></li><li><a href="h18.html">Windows の Claude Code は、パスのドライブ文字が小文字（c:\）だと、下のフォルダの CLAUDE.md を読まない</a></li><li><a href="h20.html">Claude Code の PowerShell ツールは、途中のコマンドの終了コードで、成功を「失敗」と返す</a></li><li><a href="h22.html">Claude Code の Edit・Write は、.md 以外のファイルで行末の空白を黙って消す（タブを空白に置き換えると、消えるだけ）</a></li><li><a href="h24.html">Claude Code の Grep は、作業フォルダの下を探すとき、glob の */ が「見つからない」になる</a></li><li><a href="c01.html">Codex CLI が PowerShell 5.1 でパイプに渡した日本語が ? になる（終了コード 0）</a></li><li><a href="c02.html">Codex CLI が PowerShell 5.1 で読んだ UTF-8（BOM なし）の日本語が化ける（終了コード 0）</a></li></ul>
+<ul><li><a href="h02.html">PowerShell のフックを -Command で呼ぶと、Claude Code の拒否が素通りする</a></li><li><a href="h03.html">Claude Code のフックが1つも動かない（disableAllHooks が残っている）</a></li><li><a href="h04.html">Python で書いた Claude Code の拒否フックが、日本語のフォルダでだけ書き込みを通す</a></li><li><a href="h05.html">Claude Code のフックのパスを \ で書くと、フックが起動せず書き込みが通る（終了コード 127）</a></li></ul>
+<p><a href="index.html">一覧へ</a></p>
 </main>
-<footer>作者: 上条碧斗（Kamijo Aoto）。内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</footer>
+<footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
+<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
 <script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
 function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>
 </body>

@@ -21,7 +21,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\x.ps1
 powershell -NoProfile -Command "& '.\x.ps1'; exit $LASTEXITCODE"
 
 t02
-The second value passed with -File disappears without an error
+The second value passed with PowerShell -File disappears without an error
 
 Symptom
 You pass -Path a b to a [string[]] parameter, but the script only gets a. No error, exit code 0.
@@ -43,7 +43,7 @@ param([string]$Path)
 $paths = $Path -split ','
 
 t03
-With -File, a,b stays one string instead of an array
+With PowerShell -File, a,b stays one string instead of an array
 
 Symptom
 You write -Path a,b expecting two paths. The script gets one path named a,b, then reports it missing or silently does nothing.
@@ -64,7 +64,7 @@ param([string]$Path)
 foreach ($p in ($Path -split ',')) { $p.Trim() }
 
 t04
-Non-ASCII text piped to claude -p, python or git arrives as ?
+Non-ASCII text piped through PowerShell to claude -p, python or git arrives as ?
 
 Symptom
 You pipe text with accents, CJK or emoji into claude -p (or python, git) and the program receives ?. No error. Claude may say the prompt looked garbled and guess.
@@ -90,7 +90,7 @@ $OutputEncoding = New-Object System.Text.UTF8Encoding $false
 'Read C:/work/prompt.md and do exactly what it says.' | claude -p
 
 t05
-Output from python or claude turns into mojibake in a variable
+Output from python or claude turns into mojibake in a PowerShell variable
 
 Symptom
 Printed straight to the screen it looks fine, but $x = python ... holds garbled characters, and so does the log you write from it.
@@ -116,7 +116,7 @@ Set [Console]::OutputEncoding to UTF-8 on the reading side, and PYTHONIOENCODING
 $env:PYTHONIOENCODING = 'utf-8'
 
 t06
-Python works when run by hand but crashes under Task Scheduler or redirection
+Python works by hand but crashes with UnicodeEncodeError (cp932) under Task Scheduler or redirection
 
 Symptom
 A script that runs fine in a terminal crashes with UnicodeEncodeError when its output is redirected to a file or it runs from Task Scheduler. Printing a check mark (U+2713) is enough.
@@ -170,7 +170,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
 t08
-A .ps1 with non-ASCII text fails to parse or prints mojibake
+A UTF-8 .ps1 with non-ASCII text and no BOM fails to parse or prints mojibake in PowerShell 5.1
 
 Symptom
 A .ps1 that looks right in your editor fails with a parse error such as "The string is missing the terminator", or runs and prints garbled text.
@@ -259,7 +259,7 @@ Get-ChildItem -LiteralPath $dir -Recurse -File |
   Where-Object { $_.Extension -eq '.ps1' }
 
 t12
-Markdown backticks inside "..." turn into newlines and tabs
+Markdown backticks inside PowerShell "..." turn into newlines and tabs
 
 Symptom
 You write `night-shift` or `true` in a "..." string or @"..."@ here-string. The n or t disappears and a newline or tab appears. No error; part of the file is just missing.
@@ -281,7 +281,7 @@ use `night-shift` and `NAME`.
 $text = $tpl.Replace('NAME', $name)
 
 t13
-A log that is being written shows 0 bytes
+A log that is being written shows 0 bytes in PowerShell on Windows
 
 Symptom
 A log written by a running process shows 0 bytes in Get-ChildItem. You conclude nothing was written; in fact it holds megabytes.
