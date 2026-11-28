@@ -1,0 +1,1107 @@
+t01
+PowerShell returns exit code 1 when the script exited with 2
+
+Symptom
+The script exits with code 2, but the caller sees 1. Codes 0 and 1 come through unchanged, so only a scheme like "2 = skipped, 1 = failed" breaks, and it breaks silently.
+
+Why it happens
+When you call powershell -Command "& 'x.ps1'", PowerShell returns whether the last command succeeded (0 or 1), not the script's exit code. With -File the script's exit code is returned as is.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\exit2.ps1", 'exit 2')
+powershell -NoProfile -ExecutionPolicy Bypass -File "$d\exit2.ps1"; $a = $LASTEXITCODE
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& '$d\exit2.ps1'"; $b = $LASTEXITCODE
+"-File=$a  -Command=$b"
+if ($a -eq 2 -and $b -eq 1) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Call scripts with -File. If you must use -Command, end it with ; exit $LASTEXITCODE.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\x.ps1
+powershell -NoProfile -Command "& '.\x.ps1'; exit $LASTEXITCODE"
+
+t02
+The second value passed with -File disappears without an error
+
+Symptom
+You pass -Path a b to a [string[]] parameter, but the script only gets a. No error, exit code 0.
+
+Why it happens
+With -File, arguments arrive as plain strings. -Path takes a; b matches no parameter, goes into $args and is dropped.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\arr.ps1", 'param([string[]]$Path) "count=$($Path.Count) first=$($Path[0])"')
+$o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\arr.ps1" -Path a b; $e = $LASTEXITCODE
+"$o  exit=$e"
+if ($o -eq 'count=1 first=a' -and $e -eq 0) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Add [CmdletBinding()] before param so an extra argument stops the script with an error. Take several values as one string and split it yourself (see T03).
+[CmdletBinding()]
+param([string]$Path)
+$paths = $Path -split ','
+
+t03
+With -File, a,b stays one string instead of an array
+
+Symptom
+You write -Path a,b expecting two paths. The script gets one path named a,b, then reports it missing or silently does nothing.
+
+Why it happens
+Arguments given with -File are not parsed as PowerShell expressions. The comma makes an array only when you call the script from inside PowerShell.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\arr.ps1", 'param([string[]]$Path) "count=$($Path.Count) first=$($Path[0])"')
+$o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\arr.ps1" -Path a,b
+$o
+if ($o -eq 'count=1 first=a,b') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Take one string and split it in the script with -split ','.
+param([string]$Path)
+foreach ($p in ($Path -split ',')) { $p.Trim() }
+
+t04
+Non-ASCII text piped to claude -p, python or git arrives as ?
+
+Symptom
+You pipe text with accents, CJK or emoji into claude -p (or python, git) and the program receives ?. No error. Claude may say the prompt looked garbled and guess.
+
+Why it happens
+Windows PowerShell 5.1 encodes text piped into native programs with $OutputEncoding, which defaults to ASCII. Anything outside ASCII becomes ?. It is a different setting from [Console]::OutputEncoding, which only affects reading output.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+[IO.File]::WriteAllText("$d\hex.py", 'import sys; print(sys.stdin.buffer.read().strip().hex())')
+$s = [string][char]0x65E5 + [char]0x672C
+$h = $s | python "$d\hex.py"
+"bytes=$h  (UTF-8 would be e697a5e69cac)"
+if ($h -match '^(3f)+$') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Put long non-ASCII text in a UTF-8 file and pipe an ASCII-only instruction to read it. Also set $OutputEncoding to UTF-8.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+'Read C:/work/prompt.md and do exactly what it says.' | claude -p
+
+t05
+Output from python or claude turns into mojibake in a variable
+
+Symptom
+Printed straight to the screen it looks fine, but $x = python ... holds garbled characters, and so does the log you write from it.
+
+Why it happens
+PowerShell decodes a native program's output with [Console]::OutputEncoding, which defaults to the OEM code page (437, 850, 932 ...). Output from a program that writes UTF-8 is decoded incorrectly.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+[IO.File]::WriteAllText("$d\say.py", 'import sys; sys.stdout.buffer.write((chr(0x65e5)+chr(0x672c)).encode("utf-8"))')
+$s = python "$d\say.py"
+$want = [string][char]0x65E5 + [char]0x672C
+"read with code page $([Console]::OutputEncoding.CodePage): " + (($s.ToCharArray() | ForEach-Object { '{0:X4}' -f [int]$_ }) -join ' ') + '  (want 65E5 672C)'
+if ($s -ne $want) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Set [Console]::OutputEncoding to UTF-8 on the reading side, and PYTHONIOENCODING=utf-8 on the Python side (T06). Do both.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONIOENCODING = 'utf-8'
+
+t06
+Python works when run by hand but crashes under Task Scheduler or redirection
+
+Symptom
+A script that runs fine in a terminal crashes with UnicodeEncodeError when its output is redirected to a file or it runs from Task Scheduler. Printing a check mark (U+2713) is enough.
+
+Why it happens
+On Windows, Python writes Unicode directly to a console, but encodes with the ANSI code page (1252, 932 ...) when output goes to a file or pipe. Characters outside that code page crash it. Python 3.15 (released 2026-10-09) made UTF-8 the default (PEP 686), so this is not expected on 3.15 or later (the author tested 3.13.7, not 3.15; the check prints your Python version first).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+[IO.File]::WriteAllText("$d\dash.py", 'print("a" + chr(0x2014) + chr(0x2713) + "b")')
+python "$d\dash.py" > "$d\out.txt" 2> "$d\err.txt"; $e = $LASTEXITCODE
+$err = [IO.File]::ReadAllText("$d\err.txt")
+"exit=$e, UnicodeEncodeError=$($err -match 'UnicodeEncodeError')"
+if ($e -ne 0 -and $err -match 'UnicodeEncodeError') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Set PYTHONIOENCODING=utf-8 on the sending side. In the app itself, call sys.stdout.reconfigure(encoding='utf-8') when stdout is not a terminal.
+$env:PYTHONIOENCODING = 'utf-8'
+
+t07
+PYTHONIOENCODING is set, but python -I ignores it
+
+Symptom
+You set PYTHONIOENCODING=utf-8 to fix T06, but the places that call python -I still crash the same way.
+
+Why it happens
+-I (isolated mode) ignores every PYTHON* environment variable. The flag you added for safety also drops the encoding setting. On Python 3.15 or later UTF-8 is the default, so this is not expected there (not tested).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+[IO.File]::WriteAllText("$d\dash.py", 'print("a" + chr(0x2014) + chr(0x2713) + "b")')
+$old = $env:PYTHONIOENCODING; $env:PYTHONIOENCODING = 'utf-8'
+python -I "$d\dash.py" > "$d\o1.txt" 2> "$d\e1.txt"; $a = $LASTEXITCODE
+python "$d\dash.py" > "$d\o2.txt" 2> "$d\e2.txt"; $b = $LASTEXITCODE
+$env:PYTHONIOENCODING = $old
+$err = [IO.File]::ReadAllText("$d\e1.txt")
+"with -I exit=$a, without -I exit=$b"
+if ($a -ne 0 -and $err -match 'UnicodeEncodeError' -and $b -eq 0) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Drop -I, or call sys.stdout.reconfigure(encoding='utf-8') inside the script.
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+
+t08
+A .ps1 with non-ASCII text fails to parse or prints mojibake
+
+Symptom
+A .ps1 that looks right in your editor fails with a parse error such as "The string is missing the terminator", or runs and prints garbled text.
+
+Why it happens
+Windows PowerShell 5.1 reads a .ps1 without a BOM using the ANSI code page, not UTF-8. Most editors now save UTF-8 without a BOM.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$want = [string][char]0x65E5 + [char]0x672C
+[IO.File]::WriteAllText("$d\nobom.ps1", "Write-Output '$want'", (New-Object System.Text.UTF8Encoding $false))
+$o = powershell -NoProfile -ExecutionPolicy Bypass -File "$d\nobom.ps1"
+"got $o (want $want)"
+if ($o -ne $want) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Save .ps1 files that contain non-ASCII text as UTF-8 with BOM, or keep scripts ASCII-only and build characters with [char]0x00E9.
+$t = [IO.File]::ReadAllText($path)
+[IO.File]::WriteAllText($path, $t, (New-Object System.Text.UTF8Encoding $true))
+
+t09
+A .cmd / .bat file runs its comment text as commands
+
+Symptom
+Parts of rem comments come back as "is not recognized as an internal or external command", or lines are skipped. Changing the encoding does not fix it.
+
+Why it happens
+The real cause is the line endings. cmd.exe can misread line boundaries in an LF-only batch file. On the author's machine it broke under code page 932 (Japanese), not under 65001, 437 or 1252, so on English Windows this check may say NOT REPRODUCED.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$k = [string][char]0x65E5 + [char]0x672C
+[IO.File]::WriteAllText("$d\lf.cmd", "@echo off`nrem $k$k$k comment`nrem $k more`necho START`necho END`n", [Text.Encoding]::GetEncoding(932))
+$o = cmd /c "`"$d\lf.cmd`" 2>&1" | Out-String; $e = $LASTEXITCODE
+$extra = @($o -split "`r?`n" | Where-Object { $_.Trim() -ne '' -and $_.Trim() -ne 'START' -and $_.Trim() -ne 'END' })
+$o; "console code page $([Console]::OutputEncoding.CodePage), exit=$e, unexpected lines=$($extra.Count)"
+if ($e -ne 0 -or $o -notmatch 'START' -or $extra.Count -gt 0) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Save .cmd / .bat files with CRLF line endings. In git, add *.cmd text eol=crlf to .gitattributes.
+$enc = [Text.Encoding]::GetEncoding(28591)   # one byte per char: the file's bytes stay as they are
+$t = [IO.File]::ReadAllText($path, $enc)
+$t = ($t -replace "`r`n", "`n") -replace "`n", "`r`n"
+[IO.File]::WriteAllText($path, $t, $enc)
+
+t10
+$variables in a powershell -Command one-liner vanish before it runs
+
+Symptom
+powershell -Command "foreach ($i in 1..2) { $i }" fails with a syntax error. The code is fine; the child PowerShell received foreach ( in 1..2).
+
+Why it happens
+Inside double quotes the calling PowerShell expands $i first (to nothing) and passes the result to the child.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+powershell -NoProfile -Command "foreach ($i in 1..2) { $i }"; $e = $LASTEXITCODE
+"exit=$e"
+if ($e -ne 0) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Put the logic in a .ps1 and run it with -File. For a one-liner, use single quotes.
+powershell -NoProfile -File .\job.ps1
+powershell -NoProfile -Command 'foreach ($i in 1..2) { $i }'
+
+t11
+Get-ChildItem -Include is ignored and every file comes back
+
+Symptom
+Get-ChildItem -LiteralPath $dir -Recurse -Include *.ps1 also returns .md and .json files, and whatever runs next touches them.
+
+Why it happens
+In Windows PowerShell 5.1, -Include is ignored when combined with -LiteralPath. No error.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory "$d\inc" -Force | Out-Null
+[IO.File]::WriteAllText("$d\inc\a.ps1", 'x'); [IO.File]::WriteAllText("$d\inc\b.md", 'x')
+$n = @(Get-ChildItem -LiteralPath "$d\inc" -Recurse -File -Include *.ps1).Count
+"matched $n files for -Include *.ps1 (expected 1)"
+if ($n -eq 2) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Do not use -Include. Filter with Where-Object.
+Get-ChildItem -LiteralPath $dir -Recurse -File |
+  Where-Object { $_.Extension -eq '.ps1' }
+
+t12
+Markdown backticks inside "..." turn into newlines and tabs
+
+Symptom
+You write `night-shift` or `true` in a "..." string or @"..."@ here-string. The n or t disappears and a newline or tab appears. No error; part of the file is just missing.
+
+Why it happens
+The backtick is PowerShell's escape character: `n is a newline, `t a tab, `0 a NUL.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$t = "use `night-shift and `true."
+$t
+if ($t -match "`n" -or $t -match "`t") { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Put text with backticks in a single-quoted here-string @'...'@ and insert values with .Replace(). Read the output back.
+$tpl = @'
+use `night-shift` and `NAME`.
+'@
+$text = $tpl.Replace('NAME', $name)
+
+t13
+A log that is being written shows 0 bytes
+
+Symptom
+A log written by a running process shows 0 bytes in Get-ChildItem. You conclude nothing was written; in fact it holds megabytes.
+
+Why it happens
+Windows may not update the listed size of a file that is still open for writing (reproduced under AppData on the author's machine).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+$ad = Join-Path $env:LOCALAPPDATA ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $ad -Force | Out-Null
+$log = Join-Path $ad 'w.log'; [IO.File]::WriteAllText($log, '')
+[IO.File]::WriteAllText("$d\writer.py", "import sys,time`nf=open(sys.argv[1],'a')`nf.write('x'*5000000)`nf.flush()`ntime.sleep(20)`nf.close()`n")
+$p = Start-Process python -ArgumentList "`"$d\writer.py`"", "`"$log`"" -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 5
+$listed = (Get-ChildItem -LiteralPath $ad -Filter 'w.log').Length
+$fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite'); $real = $fs.Length; $fs.Close()
+$p.WaitForExit(); Remove-Item -LiteralPath $ad -Recurse -Force
+"listed=$listed real=$real"
+if ($listed -ne $real) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Open the file and read its length before concluding it is empty.
+$fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite')
+$fs.Length; $fs.Close()
+
+t14
+claude -p --allowedTools swallows the prompt after it
+
+Symptom
+claude -p --allowedTools Read "summarize this" stops with "Input must be provided either through stdin or as a prompt argument", although the prompt is right there.
+
+Why it happens
+--allowedTools and --add-dir take any number of values. The prompt placed after them is taken as one more tool name.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$o = claude -p --allowedTools Read 'say hi' 2>&1 | Out-String
+($o.Trim() -split "`n")[0]
+if ($o -match 'Input must be provided') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Send the prompt on stdin instead of as a positional argument.
+'Summarize README.md' | claude -p --allowedTools Read
+
+h01
+A Claude Code PreToolUse hook lets the write through when it times out
+
+Symptom
+You have a hook that denies writes, yet the file was written. No error or warning on screen or in the JSON result. It happens only when the hook answers later than its timeout.
+
+Why it happens
+By default, when a hook times out, crashes or cannot start, Claude Code lets the tool call continue. The official hooks reference says not to count on a stalled hook as a gate. On Windows without Git Bash, though, a failed or timed-out hook without onFailure can block instead (same reference); the author's machine has Git Bash.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\slow-deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); Start-Sleep -Seconds 15; [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
+$hook = 'powershell -NoProfile -ExecutionPolicy Bypass -File \"' + ($d -replace '\\', '/') + '/slow-deny.ps1\"'
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK","timeout":3}]}]}}'.Replace('HOOK', $hook))
+Push-Location $d
+'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+Pop-Location
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"hook denies after 15 s, timeout 3 s: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Add "onFailure": "block" to gate hooks (Claude Code 2.1.295 or later). Then a hook that cannot run blocks every write, so test it once. Do not make the timeout too short.
+{"type": "command", "command": "...", "timeout": 60, "onFailure": "block"}
+
+h02
+A PowerShell hook called with -Command does not block Claude Code
+
+Symptom
+Your hook is a PowerShell script that exits 2 to deny, yet writes go through. Run by hand, the script does return 2.
+
+Why it happens
+A hook denies with exit code 2. Called as powershell -Command "& 'deny.ps1'", the 2 becomes 1 (same as T01), and 1 is a non-blocking error, so the write proceeds. On Windows without Git Bash a failure can block instead, so this is not expected there (official reference; the author's machine has Git Bash).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
+$hook = 'powershell -NoProfile -ExecutionPolicy Bypass -Command \"& ''' + ($d -replace '\\', '/') + '/deny.ps1''\"'
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
+Push-Location $d
+'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+Pop-Location
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"deny hook called through -Command: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Call PowerShell hooks with -File. Also add "onFailure": "block" (it blocked even with -Command).
+"command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:/hooks/deny.ps1",
+"onFailure": "block"
+
+h03
+No Claude Code hook runs at all (disableAllHooks is still set)
+
+Symptom
+Your write guard, your notification hook, nothing runs. No error, no warning. A setting you added to pause hooks for a moment may still be there.
+
+Why it happens
+With "disableAllHooks": true in a settings file, Claude Code runs none of the hooks that file reaches (managed-policy hooks excepted). The value follows settings precedence: true in your user settings (~/.claude/settings.json) is overridden by false in the project's settings. A guard with onFailure: "block" does not help, because it is never called.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+foreach ($f in @("$env:USERPROFILE\.claude\settings.json", "$PWD\.claude\settings.json", "$PWD\.claude\settings.local.json")) {
+  if (Test-Path -LiteralPath $f) { try { $v = (Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json).disableAllHooks; "your settings: $f -> disableAllHooks=$v" } catch { "your settings: $f -> not valid JSON" } }
+}
+[IO.File]::WriteAllText("$d\deny.ps1", '[IO.File]::WriteAllText(''MARK'', ''x''); [Console]::Error.WriteLine("denied"); exit 2'.Replace('MARK', "$d\called.txt"))
+$hook = 'powershell -NoProfile -ExecutionPolicy Bypass -File \"' + ($d -replace '\\', '/') + '/deny.ps1\"'
+[IO.File]::WriteAllText("$d\s.json", '{"disableAllHooks":true,"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK","onFailure":"block"}]}]}}'.Replace('HOOK', $hook))
+Push-Location $d
+'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+Pop-Location
+$w = Test-Path "$d\written.txt"; $c = Test-Path "$d\called.txt"
+"deny hook with onFailure block, plus disableAllHooks true: hook called=$c, written=$w"
+if ((-not $c) -and $w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Remove the line (or set it to false). The first lines of the check print the value in each of your settings files. To skip hooks for a single run, pass it on the command line with --settings instead of writing it to a file.
+claude -p --settings '{"disableAllHooks": true}'   # skips hooks for this run only; nothing is saved
+
+h04
+A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name
+
+Symptom
+You wrote a Python hook that denies every write. It blocks writes into an ASCII folder, but a write into a folder with a Japanese name goes through. No error, no warning.
+
+Why it happens
+Claude Code sends UTF-8 JSON to the hook's stdin. On Japanese Windows, Python reads a non-console stdin as cp932, so json.load(sys.stdin) raises JSONDecodeError (Invalid \escape) on a Japanese path: the last UTF-8 byte of a character is read as a cp932 lead byte and swallows the following backslash. The hook crashes with exit code 1, a non-blocking error, so without onFailure the write proceeds. Other non-UTF-8 code pages can mangle the input in similar ways.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$jp = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+$t = Join-Path $d $jp; New-Item -ItemType Directory $t -Force | Out-Null
+$py = & python -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+if (-not $py) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+[IO.File]::WriteAllText("$d\deny_all.py", "import sys, json`nopen(r'MARK', 'w').close()`ndata = json.load(sys.stdin)`nprint(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': 'deny_all'}}))`n".Replace('MARK', "$d\called.txt"))
+$hook = '\"' + ($py -replace '\\', '/') + '\" \"' + ($d -replace '\\', '/') + '/deny_all.py\"'
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
+[IO.File]::WriteAllText("$d\prompt.md", "Use the Write tool once to create the file $t\written.txt with the content hi. Do not retry if it is blocked.", (New-Object Text.UTF8Encoding $false))
+Push-Location $d
+"Read the file $d\prompt.md and do exactly what it says." | claude -p --settings s.json --permission-mode acceptEdits --allowedTools "Read,Write" | Out-Null
+Pop-Location
+$w = Test-Path "$t\written.txt"; $c = Test-Path "$d\called.txt"
+"deny-all Python hook, target folder with a Japanese name: hook called=$c, written=$w"
+if (-not $c) { 'CANNOT CHECK (the hook was never called: check disableAllHooks or your settings)' } elseif ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Read stdin as bytes and decode it as UTF-8. Also add "onFailure": "block" (it blocked even with the unfixed hook). Keep the deny reason ASCII (json.dumps default).
+import sys, json
+data = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+
+h05
+A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)
+
+Symptom
+You have a hook that denies writes, yet the file was written. Run by hand, the hook script does deny. The command in your settings is a backslash path such as C:\...\deny.cmd, or a path with a space and no quotes. No error, no warning.
+
+Why it happens
+With Git for Windows installed, Claude Code runs a hook's command as a Git Bash command line. To bash, \ escapes the next character, so C:\Users\me\deny.cmd becomes C:Usersmedeny.cmd, a command that does not exist. An unquoted path with a space is split at the space. Both exit with 127 (command not found), and for PreToolUse anything other than 0 or 2 is a non-blocking error, so the write proceeds. Nothing shows in the claude -p result; the --debug log records status 127 (official issue #109103).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$cmd = (@('@echo off', 'more > nul', 'echo x> "MARK"', 'exit /b 2') -join "`r`n").Replace('MARK', "$d\called.txt")
+[IO.File]::WriteAllText("$d\deny.cmd", $cmd + "`r`n")
+$fwd = '\"' + ($d -replace '\\', '/') + '/deny.cmd\"'
+$back = ($d + '\deny.cmd') -replace '\\', '\\'
+foreach ($k in @('fwd', 'back')) {
+  $w = Join-Path $d $k; New-Item -ItemType Directory $w -Force | Out-Null
+  $hook = if ($k -eq 'fwd') { $fwd } else { $back }
+  [IO.File]::WriteAllText("$w\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"HOOK"}]}]}}'.Replace('HOOK', $hook))
+  Push-Location $w
+  'Use the Write tool once to create the file written.txt with the content hi. Do not retry if it is blocked.' | claude -p --settings s.json --permission-mode acceptEdits | Out-Null
+  Pop-Location
+  if ($k -eq 'fwd') { $c = Test-Path "$d\called.txt" }
+}
+$wf = Test-Path "$d\fwd\written.txt"; $wb = Test-Path "$d\back\written.txt"
+"same deny.cmd: quoted C:/.../deny.cmd -> hook called=$c, written=$wf; unquoted C:\...\deny.cmd -> written=$wb"
+if ((-not $c) -or $wf) { 'CANNOT CHECK (the quoted forward-slash hook did not block: check Git for Windows, disableAllHooks or your settings)' } elseif ($wb) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Write the path with forward slashes and wrap it in quotes (\" inside JSON). Give gate hooks "onFailure": "block" too, so a hook that cannot start also blocks (Claude Code 2.1.295 or later).
+"command": "\"C:/Users/me/hooks/deny.cmd\"",
+"onFailure": "block"
+
+h06
+Writing through a Windows 8.3 short name makes Claude Code drop the original file name
+
+Symptom
+app.settings.json or credentials.json is gone, and a file named APPSET~1.JSO or CREDEN~1.JSO is there instead, with the content Claude wrote. The tool reported success and never mentioned a rename.
+
+Why it happens
+A Windows file can carry a second, short name (8.3 format) that dir /x shows. It is an alias for the same file, but when Claude Code's Write or Edit is given the short name, the long-named file is removed and a new file literally named with the short spelling is created (official issue #110153). It was refused in an acceptEdits claude -p run, but happens in bypassPermissions, which writes without asking.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+Set-Content -LiteralPath "$d\app.settings.json" -Value old
+$short = (cmd /c dir /x "$d" | Select-String 'app\.settings\.json' | ForEach-Object { ($_.Line -split '\s+') | Where-Object { $_ -match '~[0-9]' } } | Select-Object -First 1)
+if (-not $short) { 'CANNOT CHECK (no 8.3 short name on this drive: dir /x shows none, so this cannot happen here)' } else {
+"short name: $short"
+Push-Location $d
+"Use the Write tool once to overwrite the file $short in the current folder with the single line new. Use exactly that file name. Do not use any other tool. Do not retry." | claude -p --permission-mode bypassPermissions | Out-Null
+Pop-Location
+$long = Test-Path -LiteralPath "$d\app.settings.json"
+$names = (Get-ChildItem -LiteralPath $d -Force | ForEach-Object { $_.Name }) -join ', '
+"after the write: files = $names"
+if ((-not $long) -and ($names -match [regex]::Escape($short))) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Keep bypassPermissions to throwaway environments. If you use it on your own machine, add a PreToolUse hook that denies paths whose file-name part contains ~ followed by digits (call it with -File and add onFailure: block).
+$p = [string]$j.tool_input.file_path
+if ((Split-Path $p -Leaf) -match '~[0-9]+') { [Console]::Error.WriteLine('blocked: 8.3 short name'); exit 2 }
+
+h07
+Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with & or a pipe running
+
+Symptom
+You had Claude Code run a Bash command in the background and stop it with TaskStop, and claude -p has exited, but sleep.exe, cat.exe or timeout.exe are still in Task Manager. With tail -f or a loop they never end, slow the PC down, and can collide with the next night's run.
+
+Why it happens
+On Windows, when TaskStop stops a background Bash task, Claude Code stops the top bash but not the processes it started with & or a pipe (official issue #109388). They stay running under Git's usr/bin after claude -p exits.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\p.txt", "Do exactly these steps and nothing else:`n1. Use the Bash tool with run_in_background set to true to run exactly this command: sleep 123 & timeout 124 sleep 122 & sleep 125 | cat`n2. Use the TaskStop tool to stop that background task.`n3. Reply STOPPED and the task id.")
+Push-Location $d
+$o = Get-Content "$d\p.txt" -Raw | claude -p --allowedTools "Bash,TaskStop" | Out-String
+Pop-Location
+Start-Sleep -Seconds 3
+$left = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'sleep(\.exe)?"?\s+12[235]\b' })
+"claude said: $($o.Trim())"
+"processes still running after claude -p ended: $($left.Count)"
+$left | ForEach-Object { '  ' + $_.ProcessId + ' ' + $_.CommandLine }
+'(leftover sleep processes end by themselves within about two minutes)'
+if ($o -notmatch 'STOPPED') { 'CANNOT CHECK (claude did not report STOPPED: check that the Bash and TaskStop tools are available and allowed)' } elseif ($left.Count -gt 0) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Give background commands a timeout (timeout 20 sleep 301 removes itself when time is up). From time to time, list the processes under Git's usr/bin with the command below and look for leftovers. For unattended night runs, detect processes left after a run and stop the next run.
+Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*\Git\usr\bin\*' } | Select-Object ProcessId, CommandLine
+
+h08
+After claude -w -p exits, the git worktree stays locked and cannot be removed
+
+Symptom
+git worktree remove refuses a worktree made by claude -w with a locked working tree error, and git worktree prune leaves it too. claude -p exited with code 0. Every night run adds one more worktree.
+
+Why it happens
+claude -w locks the worktree it makes with claude session e1 (pid ...). Run with -p, it does not remove that lock when it exits (official issue #111811). git neither removes nor prunes a locked worktree.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+Push-Location $d
+git init -q 2>$null
+git -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init 2>$null
+'Reply with the single word OK.' | claude -w e1 -p | Out-Null
+$list = git worktree list --porcelain 2>$null | Out-String
+Pop-Location
+$wt = ([regex]::Matches($list, '(?m)^worktree ')).Count
+$lock = $list -match 'locked claude'
+"worktrees: $wt; lock line after claude -p ended: $lock"
+($list -split "`n") | Where-Object { $_ -match '^locked' }
+if ($wt -lt 2) { 'CANNOT CHECK (claude -w did not make a worktree: check that git is installed and claude -w works here)' } elseif ($lock) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Before cleaning up, check that the pid on the locked line of git worktree list --porcelain is no longer running, and only then git worktree unlock and remove it. Do not unlock worktrees whose pid is still running, and check for uncommitted changes first.
+git worktree list --porcelain
+# for locked claude session ... (pid 1234)
+Get-Process -Id 1234 -ErrorAction SilentlyContinue
+# if nothing is shown
+git worktree unlock <path>
+git worktree remove <path>
+
+h09
+A Claude Code Bash command containing $$( is stopped by the dangerous-removal check
+
+Symptom
+A Bash tool call that deletes nothing is stopped by a check that says it may be a dangerous removal, and the command never runs. The command contains $$( (two dollar signs and a parenthesis). It is stopped even in bypassPermissions.
+
+Why it happens
+Before running a Bash command, Claude Code checks it for removals that could delete far too much. With $$( in it, Claude Code cannot be sure how the shell will read the command, so it treats it as a possible removal and stops it (official issue #108970). A single $( goes through.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\p1.txt", 'Run exactly this Bash command and nothing else, then stop: echo ''a$$(b'' > x.txt')
+[IO.File]::WriteAllText("$d\p2.txt", 'Run exactly this Bash command and nothing else, then stop: echo ''a$(b'' > y.txt')
+Push-Location $d
+Get-Content "$d\p2.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Get-Content "$d\p1.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+$y = Test-Path "$d\y.txt"; $x = Test-Path "$d\x.txt"
+"echo with one dollar and a paren -> written=$y; echo with two dollars and a paren -> written=$x"
+if (-not $y) { 'CANNOT CHECK (even the one-dollar command did not run: check that the Bash tool is available and allowed)' } elseif (-not $x) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Do not put text containing $$( in a command. Save it to a file with the Write tool first. If it must be in a command, escape the dollars: "a\$\$(b".
+# save the text with the Write tool first
+# if it must be in a command
+echo "a\$\$(b"
+
+h10
+On Windows, Claude Code's Bash tool turns \\ (two backslashes) into one
+
+Symptom
+A script or regular expression that Claude Code wrote through the Bash tool has \ where it should have \\. It happens inside single quotes and inside quoted heredocs. No error; the broken text just runs.
+
+Why it happens
+On Windows (Git for Windows), Claude Code's Bash tool turns each \\ in the command into a single \ before running it. The command the model sent has two (the transcript shows it). Four become two, a single one stays single (official issue #110308).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\p.txt", 'Use the Bash tool once to run exactly this command and nothing else, then stop: printf ''%s'' ''a\\b'' > out.bin')
+Push-Location $d
+Get-Content "$d\p.txt" -Raw | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+if (-not (Test-Path "$d\out.bin")) { 'CANNOT CHECK (out.bin was not written: check that the Bash tool is available and allowed)' } else {
+$b = [IO.File]::ReadAllBytes("$d\out.bin")
+"asked for a, two backslashes, b -> bytes written: " + (($b | ForEach-Object { '{0:x2}' -f $_ }) -join ' ')
+if ($b.Length -eq 3) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Do not put text with backslashes (scripts, regular expressions, Windows paths) in Bash commands or heredocs. Save it to a file with the Write tool first, and write Windows paths with forward slashes.
+# save the text with the Write tool, and let the command only read the file
+python fix.py
+
+h12
+Claude Code's PowerShell tool goes back to the start folder on the next call after cd
+
+Symptom
+You ran Set-Location (cd) in Claude Code's PowerShell tool, but the next call is back in the start folder and writes files in the wrong place. The PowerShell tool's own description says the working directory persists between commands.
+
+Why it happens
+With the environment variable CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR=1, Claude Code resets the working directory to the start folder on every call. The Bash tool's description changes to match; the PowerShell tool's description still says it persists, so the model writes the next command assuming the cd took effect (official issue #111705).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+foreach ($v in @('1', '0')) {
+  $w = Join-Path $d "v$v"; New-Item -ItemType Directory "$w\sub" -Force | Out-Null
+  [IO.File]::WriteAllText("$w\s.json", '{"env":{"CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR":"VAL","CLAUDE_CODE_USE_POWERSHELL_TOOL":"1"}}'.Replace('VAL', $v))
+  $p = 'You must use the PowerShell tool (not Bash). Call 1: Set-Location sub . Call 2 (a separate PowerShell tool call): [IO.File]::WriteAllText("OUT", (Get-Location).Path) . Then stop.'.Replace('OUT', "$w\call2.txt")
+  Push-Location $w
+  $p | claude -p --settings s.json --allowedTools PowerShell | Out-Null
+  Pop-Location
+}
+$r1 = ''; $r0 = ''
+if (Test-Path "$d\v1\call2.txt") { $r1 = (Get-Content "$d\v1\call2.txt" -Raw).Trim() }
+if (Test-Path "$d\v0\call2.txt") { $r0 = (Get-Content "$d\v0\call2.txt" -Raw).Trim() }
+"second PowerShell call after cd sub: MAINTAIN=1 -> $r1 ; MAINTAIN=0 -> $r0"
+if ((-not $r0) -or (-not $r1)) { 'CANNOT CHECK (the PowerShell tool did not run: it needs a Claude Code version with the PowerShell tool)' } elseif (-not $r0.EndsWith('sub')) { 'CANNOT CHECK (even with MAINTAIN=0 the cd did not stay)' } elseif (-not $r1.EndsWith('sub')) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Name the working folder in every call (use absolute paths, or Set-Location -ErrorAction Stop in the same call before running). Remove the setting if you do not need it.
+Set-Location -LiteralPath 'C:/work/sub' -ErrorAction Stop; ./run.ps1
+
+h11
+On Windows, a cd into %TEMP% in Claude Code's Bash tool is undone on the next call
+
+Symptom
+You cd'd into a folder under %TEMP% (AppData\Local\Temp) in the Bash tool, but the next call is back in the start folder and prints Shell cwd was reset to .... A cd into a sibling folder outside Temp (AppData\Local\Microsoft, for example) sticks.
+
+Why it happens
+On Windows, Claude Code's Bash tool sends the shell back to the start folder when the working directory after a call is under %TEMP% (official issue #110213). Inside the same call the cd works, so the first call behaves and later calls silently run somewhere else.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory "$d\sub" -Force | Out-Null
+$u = $d -replace '\\', '/'
+$p = 'Use the Bash tool exactly twice, one command per call. Call 1: cd "U/sub" && pwd > "U/p1.txt" . Call 2: pwd > "U/p2.txt" . Then stop.'.Replace('U', $u)
+Push-Location $d
+$p | claude -p --allowedTools Bash | Out-Null
+Pop-Location
+if (-not (Test-Path "$d\p1.txt") -or -not (Test-Path "$d\p2.txt")) { 'CANNOT CHECK (the Bash tool did not run both calls: check that it is available and allowed)' } else {
+$p1 = (Get-Content "$d\p1.txt" -Raw).Trim(); $p2 = (Get-Content "$d\p2.txt" -Raw).Trim()
+"inside %TEMP%: same call after cd sub -> $p1 ; next call -> $p2"
+if (-not $p1.EndsWith('/sub')) { 'CANNOT CHECK (cd did not work even inside the same call)' } elseif (-not $p2.EndsWith('/sub')) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Name the working folder in every call (use absolute paths, or put the cd and the command in the same call). If you keep a scratch folder under %TEMP%, always use its absolute path.
+cd "C:/Users/me/AppData/Local/Temp/work" && ./run.sh   # cd and run in the same call
+
+h13
+claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)
+
+Symptom
+A script that reads the structured answer (structured_output) from claude -p --json-schema gets nothing when --agent is added. Exit code 0, subtype success, is_error false, no error.
+
+Why it happens
+The --json-schema answer comes back through a tool named StructuredOutput. When the agent's tools: allowlist restricts tools, that tool is removed too, and Claude answers in plain text (official issue #109393).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\.claude\agents" | Out-Null
+[IO.File]::WriteAllText("$d\.claude\agents\ro.md", "---`nname: ro`ndescription: read-only test agent`ntools: Read`n---`nYou answer questions briefly.`n")
+$schema = '{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"}},\"required\":[\"answer\"]}'
+$q = 'What is 2+2? Reply with the answer.'
+Push-Location $d
+$a = $q | claude -p --model haiku --json-schema $schema --output-format json | Out-String
+$b = $q | claude -p --model haiku --json-schema $schema --agent ro --output-format json | Out-String
+Pop-Location
+$ha = $a -match '"structured_output"'; $hb = $b -match '"structured_output"'; $ok = $b -match '"subtype":"success"'
+"without --agent: structured_output=$ha; with --agent ro: structured_output=$hb, subtype success=$ok"
+if (-not $ha) { 'CANNOT CHECK (even without --agent there was no structured_output: check that claude -p works and is logged in)' } elseif ((-not $hb) -and $ok) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+When you pass --json-schema, treat a missing structured_output as a failure instead of trusting subtype or the exit code. Do not use an agent with a tools: allowlist in runs that need --json-schema.
+$out = $prompt | claude -p --json-schema $schema --output-format json | Out-String
+if ($LASTEXITCODE -ne 0 -or $out -notmatch '"structured_output"') { Write-Error 'no structured_output'; exit 1 }
+
+h15
+A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading
+
+Symptom
+Claude ignores rules from a subdirectory CLAUDE.md while working in that folder. Earlier in the session it read a few lines of that CLAUDE.md. No error, no warning.
+
+Why it happens
+A subdirectory CLAUDE.md loads when Claude reads another file in that folder (official docs). If the session first read that CLAUDE.md with offset/limit, the full load never happens (official issue #111719).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$res = @{}
+foreach ($case in 'partial', 'plain') {
+    $t = Join-Path $d $case
+    New-Item -ItemType Directory -Force (Join-Path $t 'sub') | Out-Null
+    $lines = 1..30 | ForEach-Object { "Rule $_`: keep files tidy." }
+    $lines += 'MARKER: the code word for this folder is PELICAN.'
+    [IO.File]::WriteAllText((Join-Path $t 'sub\CLAUDE.md'), ($lines -join "`n") + "`n")
+    [IO.File]::WriteAllText((Join-Path $t 'sub\a.txt'), "hello`n")
+    $ask = 'Without reading any file again, reply with the code word for the sub folder if any instructions you have contain one, otherwise reply UNKNOWN.'
+    if ($case -eq 'partial') { $p = "Do exactly this: 1. Use the Read tool on sub/CLAUDE.md with offset 1 and limit 1. 2. Use the Read tool on sub/a.txt. 3. $ask" }
+    else { $p = "Do exactly this: 1. Use the Read tool on sub/a.txt. 2. $ask" }
+    Push-Location $t
+    $out = $p | claude -p --allowedTools Read --output-format json | Out-String
+    Pop-Location
+    $res[$case] = $out -match 'PELICAN'
+}
+"knows the code word: after a partial Read first = $($res['partial']); without it = $($res['plain'])"
+if (-not $res['plain']) { 'CANNOT CHECK (even without the partial Read the code word was not known: check that claude -p works and is logged in)' } elseif (-not $res['partial']) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Write in the root CLAUDE.md: read a subdirectory CLAUDE.md in full or not at all, never with offset or limit. Keep subdirectory CLAUDE.md files short with the important rules first.
+# one line in the root CLAUDE.md
+Read a subdirectory CLAUDE.md in full or not at all; never with offset or limit.
+
+h17
+Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run
+
+Symptom
+A hook in the repo root .claude/settings.json that blocks writes sometimes does nothing. In those runs, an editor terminal or a script started claude in a folder below the repo root. No error, no warning.
+
+Why it happens
+As documented, the shared .claude/settings.json is read from the folder Claude Code starts in. .claude/settings.local.json normally comes from the repo root, but on Windows it is also read from the starting folder. Plugins installed with --scope local are disabled in subfolders for the same reason (official issue #106149).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$repo = Join-Path $d 'hookrepo'
+New-Item -ItemType Directory -Force "$repo\.claude", "$repo\sub\deep" | Out-Null
+Push-Location $repo; git init -q 2>$null; Pop-Location
+$mark = ($repo + '\hook-ran.txt').Replace('\', '/')
+$cmd = 'python -c "open(r''' + $mark + ''',''a'').write(''x'')"'
+$settings = @{ hooks = @{ PreToolUse = @(@{ matcher = 'Read'; hooks = @(@{ type = 'command'; command = $cmd }) }) } } | ConvertTo-Json -Depth 8
+[IO.File]::WriteAllText("$repo\.claude\settings.json", $settings)
+[IO.File]::WriteAllText("$repo\sub\deep\a.txt", "hello`n")
+[IO.File]::WriteAllText("$repo\a.txt", "hello`n")
+$ran = @{}
+foreach ($where in 'root', 'sub\deep') {
+    Remove-Item -LiteralPath "$repo\hook-ran.txt" -ErrorAction SilentlyContinue
+    Push-Location (Join-Path $repo ($where -replace 'root', ''))
+    'Use the Read tool once on a.txt and reply done.' | claude -p --allowedTools Read | Out-Null
+    Pop-Location
+    $ran[$where] = Test-Path "$repo\hook-ran.txt"
+}
+"root hook ran when started at the repo root: $($ran['root']); when started in sub\deep: $($ran['sub\deep'])"
+if (-not $ran['root']) { 'CANNOT CHECK (the hook did not run even at the root: check that python and git are installed)' } elseif (-not $ran['sub\deep']) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Put hooks that must always run in the user settings (~/.claude/settings.json). In unattended scripts, Push-Location to the repo root before calling claude -p.
+Push-Location C:/work/repo   # the folder that holds .claude/settings.json
+$prompt | claude -p
+Pop-Location
+
+h19
+Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)
+
+Symptom
+You started Claude Code in a folder under a junction made with mklink /J, but the working folder Claude reports, and the cwd and file_path your hooks receive, are the real path behind the junction. A hook whose allowed paths use the launch spelling no longer matches.
+
+Why it happens
+Claude Code follows the junction in the starting folder and uses the real path as its working folder (official issue #106304; per the issue, 2.1.312 and earlier kept the launch spelling). The transcript folder is named after the real path too.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$real = Join-Path $d 'real'
+$link = Join-Path $d 'link'
+New-Item -ItemType Directory -Force "$real\repo" | Out-Null
+cmd /c mklink /J "$link" "$real" | Out-Null
+git -C "$real\repo" init -q 2>$null
+if (-not (Test-Path "$link\repo")) { 'CANNOT CHECK (could not create the junction with mklink /J)' } else {
+Push-Location "$link\repo"
+$init = 'reply ok' | claude -p --model haiku --output-format stream-json --verbose --max-turns 1 | Where-Object { $_ -match '"subtype":"init"' } | Select-Object -First 1
+Pop-Location
+$cwd = [regex]::Match([string]$init, '"cwd":"([^"]+)"').Groups[1].Value.Replace('\\', '\')
+"launched in: $link\repo"
+"init cwd   : $cwd"
+if (-not $cwd) { 'CANNOT CHECK (no init line from claude -p: check that claude -p works and is logged in)' } elseif ($cwd -like '*\real\repo') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+In hooks, resolve both sides to the real path before comparing (os.path.realpath in Python), and write allowed paths with the real path.
+import os
+ok = os.path.normcase(os.path.realpath(target)).startswith(os.path.normcase(os.path.realpath(root)) + os.sep)
+
+h14
+On Windows, Claude Code's Bash tool does not run commands longer than about 7,400 characters (the error says a quote is unmatched)
+
+Symptom
+When Claude Code runs a long heredoc or script with the Bash tool, nothing runs and it gets unexpected EOF while looking for matching, a quoting error, although the command has no quoting mistake. With text made mostly of single quotes, it happens at about 1,500 characters.
+
+Why it happens
+On Windows, Claude Code wraps the Bash tool command in setup and cleanup code and passes it as one bash.exe -c string. Git for Windows bash keeps only the first 8,186 characters of that string and drops the rest (official issue #102533). After the wrapper, about 7,400 characters are left for the command on the author's PC. According to the issue, each single quote is rewritten as five characters.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$hook = @'
+import json, sys
+from pathlib import Path
+d = json.load(sys.stdin)
+if d.get("tool_name") != "Bash":
+    sys.exit(0)
+n = int(Path("n.txt").read_text().strip())
+cmd = "printf %s '" + "A" * n + "' > o.txt; echo ok > d.txt"
+print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": {"command": cmd}}}))
+'@
+[IO.File]::WriteAllText("$d\hook.py", $hook)
+$hp = ($d + '\hook.py').Replace('\', '/')
+[IO.File]::WriteAllText("$d\s.json", '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"python \"HP\""}]}]}}'.Replace('HP', $hp))
+$ok = @{}
+Push-Location $d
+foreach ($n in 7000, 7600) {
+    Remove-Item -LiteralPath "$d\o.txt", "$d\d.txt" -ErrorAction SilentlyContinue
+    [IO.File]::WriteAllText("$d\n.txt", "$n")
+    'Use the Bash tool once to run: echo hi . Then stop.' | claude -p --settings s.json --allowedTools Bash | Out-Null
+    $ok[$n] = (Test-Path "$d\d.txt")
+}
+Pop-Location
+"a 7000-A command ran to the end: $($ok[7000]); a 7600-A command ran to the end: $($ok[7600])"
+if (-not $ok[7000]) { 'CANNOT CHECK (even the 7000-character command did not run: check that python is installed and the Bash tool works)' } elseif (-not $ok[7600]) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Write long scripts and heredocs to a file with the Write tool, then run them with a short command such as bash script.sh. Say so in CLAUDE.md.
+# CLAUDE.md
+- On Windows, do not put long scripts or heredocs in Bash tool commands (the limit is in the 7,000s; a single quote counts as 5)
+- Write anything over a few thousand characters to a file with the Write tool and run bash <file>
+
+h21
+If a hook's .ps1 file is missing, writes go through even with onFailure: block
+
+Symptom
+A hook that blocks writes, called as powershell.exe -File <script> with onFailure: block, stops blocking after the script is moved or renamed. No error.
+
+Why it happens
+When the .ps1 passed to -File does not exist, Windows PowerShell 5.1 exits with 0xFFFD0000 (-196608). Claude Code treats that as success, so onFailure: block does not apply (official issue #100891). A missing executable, a timeout or exit 1 do block, per the issue.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\.claude" | Out-Null
+$settings = @'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/missing-script.ps1"],
+            "onFailure": "block",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+'@
+[IO.File]::WriteAllText("$d\.claude\settings.json", $settings)
+Push-Location $d
+'Use the Write tool once to create out.txt with the text hi. Do not retry. Then reply done.' | claude -p --allowedTools Write | Out-Null
+Pop-Location
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$d\.claude\hooks\missing-script.ps1" 2>$null | Out-Null
+$code = $LASTEXITCODE
+$w = Test-Path "$d\out.txt"
+"exit code of powershell -File <missing .ps1>: $code; out.txt written despite onFailure block: $w"
+if ($w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Check inside the hook command that the script exists and exit 1 if not. End with exit $LASTEXITCODE so a deny (exit 2) from the script still comes back as 2.
+"command": "powershell.exe",
+"args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "$s = 'C:/hooks/guard.ps1'; if (-not (Test-Path -LiteralPath $s -PathType Leaf)) { exit 1 }; $global:LASTEXITCODE = 0; & $s; if (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE } else { exit 1 } }; exit $LASTEXITCODE"],
+"onFailure": "block"
+
+h16
+On Windows, Claude Code's Edit and Write silently change the letter case of the file name
+
+Symptom
+A Config.txt that Claude Code edited is now called config.TXT or another spelling with different letter case. The content is correct, the tool only said it was updated, and git status on Windows shows just M.
+
+Why it happens
+When the file_path given to Edit or Write differs in letter case from the real name, Claude Code changes the content and also renames the file to the spelling in file_path (official issue #100987). Ordinary writes such as PowerShell Set-Content keep the name. Git on Windows ignores case by default, so the rename does not show.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\Sub" | Out-Null
+[IO.File]::WriteAllText("$d\Sub\EditBack.txt", "fruit = APPLE`r`n")
+Push-Location $d
+"First use the Read tool on the file Sub/EditBack.txt in the current folder. Then use the Edit tool exactly once with file_path set to exactly this string, character for character: $d\sub\editback.TXT . Replace APPLE with ORANGE. Use no other tools. Then stop." | claude -p --allowedTools "Read,Edit" | Out-Null
+Pop-Location
+$name = (Get-ChildItem -LiteralPath "$d\Sub" | ForEach-Object Name) -join ', '
+$body = (Get-Content -LiteralPath "$d\Sub\EditBack.txt" -Raw).Trim()
+"file name after the Edit: $name; content: $body"
+if ($body -notmatch 'ORANGE') { 'CANNOT CHECK (the Edit did not happen: check that claude -p can use Read and Edit)' } elseif ($name -ceq 'editback.TXT') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Have Claude check the real name with Glob or Read before Edit or Write and use that exact spelling in file_path; say so in CLAUDE.md. Before committing, run git -c core.ignorecase=false status --short and look for a D and ?? pair.
+git -c core.ignorecase=false status --short
+# a D Config.txt next to ?? config.TXT means the name changed
+
+h23
+A Git Bash hook that compares $PWD with file_path treats even files inside the project as outside on Windows
+
+Symptom
+A bash hook that keeps writes inside the project works on Linux but on Windows blocks every write, including writes inside the project and edits to .claude/settings.json.
+
+Why it happens
+tool_input.file_path arrives in Windows form (C:\...). Git Bash's $PWD is /c/..., /tmp/... or C:/..., so a plain string prefix never matches (official issue #94256). A deny-list hook written the same way blocks nothing.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\.claude\hooks" | Out-Null
+Push-Location $d; git init -q 2>$null; Pop-Location
+$sh = @'
+f=$(python -c "import sys,json; print(json.load(sys.stdin)['tool_input'].get('file_path',''))")
+printf 'PWD=%s\nfile_path=%s\n' "$PWD" "$f" > seen.txt
+case "$f" in "$PWD"/*) exit 0;; *) echo "BLOCKED: file outside the project" >&2; exit 2;; esac
+'@
+[IO.File]::WriteAllText("$d\.claude\hooks\guard.sh", $sh.Replace("`r`n", "`n"))
+[IO.File]::WriteAllText("$d\.claude\settings.json", '{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"bash .claude/hooks/guard.sh"}]}]}}')
+Push-Location $d
+'Use the Write tool once to create out.txt in the current folder with the text hi. Do not retry. Then reply done.' | claude -p --allowedTools Write | Out-Null
+Pop-Location
+if (Test-Path "$d\seen.txt") { Get-Content "$d\seen.txt" }
+$w = Test-Path "$d\out.txt"
+"write inside the project went through: $w"
+if (-not (Test-Path "$d\seen.txt")) { 'CANNOT CHECK (the hook did not run: check that python, git and Git for Windows bash are installed)' } elseif (-not $w) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Normalize both sides with cygpath -u before comparing. Normalizing only file_path is not enough, because $PWD can come as C:/....
+u() { cygpath -u "$1" 2>/dev/null || printf '%s' "$1"; }
+f=$(u "$f"); p=$(u "$PWD")
+case "$f" in "$p"/*) exit 0;; *) echo "BLOCKED" >&2; exit 2;; esac
+
+h18
+On Windows, Claude Code skips a subfolder's CLAUDE.md when the path's drive letter is lowercase (c:\)
+
+Symptom
+Claude Code sometimes ignores the rules in a CLAUDE.md placed in a subfolder. In those runs, the drive letter in the path given to Read differed in case from the folder Claude Code started in (started in C:, read with c:\). No error, no warning.
+
+Why it happens
+Claude Code loads a subfolder's CLAUDE.md when it reads a file there, but on Windows it does not when the drive letter's case differs from the starting folder (official issue #98835: the report had a VS Code workspace opened as c:\ with C:\ reads failing; the author started in C: and c:\ reads failed).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\sub" | Out-Null
+[IO.File]::WriteAllText("$d\sub\CLAUDE.md", "# Rules for this folder`nWhenever you answer after reading a file in this folder, end your answer with the code word ZEBRA-42.`n")
+[IO.File]::WriteAllText("$d\sub\a.txt", "hello`n")
+Set-Location $d
+$lower = 'c' + $d.Substring(1)
+$got = @()
+foreach ($p in "$d\sub\a.txt", "$lower\sub\a.txt") {
+    $ans = "Use the Read tool once with file_path set to exactly this string: $p . Then reply with the file's content and follow any instructions you were given for that folder." | claude -p --allowedTools Read | Out-String
+    $got += ($ans -match 'ZEBRA-42')
+}
+"sub\CLAUDE.md applied with C:\ path: $($got[0]); with c:\ path: $($got[1])"
+if ($d.Substring(0, 2) -ne 'C:') { 'CANNOT CHECK (TEMP is not on drive C:)' } elseif (-not $got[0]) { 'CANNOT CHECK (the folder CLAUDE.md was not applied even with C:\: check that claude -p can use Read)' } elseif (-not $got[1]) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Put rules that must always apply in the CLAUDE.md of the folder Claude Code starts in (that one is loaded at startup). Tell Claude in CLAUDE.md to write paths with an uppercase drive letter, C:/.
+# CLAUDE.md
+- On Windows, write paths with an uppercase drive letter (C:/) and forward slashes
+
+h20
+Claude Code's PowerShell tool reports success as failure because of an earlier command's exit code
+
+Symptom
+When Claude Code runs robocopy or similar in the PowerShell tool, the copy works but the call comes back as a failure with Exit code 1, and Claude retries or rewrites the command. The last statement succeeded.
+
+Why it happens
+In PowerShell an external program's exit code stays in $LASTEXITCODE. The PowerShell tool returns whatever $LASTEXITCODE holds at the end as the result of the whole call (official issue #97589). Plain powershell -Command or -File gives 0 for the same command. robocopy returns 1-7 on success.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\s.json", '{"env":{"CLAUDE_CODE_USE_POWERSHELL_TOOL":"1"}}')
+Push-Location $d
+$out = "You must use the PowerShell tool (not Bash). Run exactly the PowerShell command in the next line once, then stop.`ncmd /c exit 3; 'done'" | claude -p --settings s.json --allowedTools PowerShell --output-format stream-json --verbose | Out-String
+Pop-Location
+$ran = $out -match 'done'
+$err = $out -match '"is_error":true'
+"the PowerShell tool ran the command: $ran; the call was reported as an error: $err"
+if (-not $ran) { 'CANNOT CHECK (the PowerShell tool did not run: check that claude -p can use it)' } elseif ($err -and ($out -match 'Exit code 3')) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+After commands that return non-zero on success (robocopy, findstr, git diff --quiet), end with exit 0 and print the exit code as text. Real failures are then not flagged either, so have Claude read the exit= line.
+robocopy src dst a.txt | Out-Null; $rc = $LASTEXITCODE; if ($rc) { "exit=$rc" }; exit 0
+
+h22
+Claude Code's Edit and Write silently strip trailing whitespace outside .md files (tabs-to-spaces just deletes the tabs)
+
+Symptom
+You ask Claude Code to turn tabs into spaces and the tabs are gone with no spaces in their place (a<TAB>b becomes ab), while the tool says the replacement was made. Files written with Write lose their trailing spaces too. .md files are not affected.
+
+Why it happens
+Outside .md files, Edit and Write strip whitespace at the end of each line of the text they are given before writing (official issue #100296). A replacement made only of whitespace is all trailing, so it becomes empty and the replacement turns into a deletion.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+[IO.File]::WriteAllText("$d\case.txt", "a`tb`tc`n1`t2`t3`n")
+Push-Location $d
+"Use the Read tool on case.txt, then use the Edit tool once on case.txt with old_string set to exactly one TAB character, new_string set to exactly two space characters, and replace_all true. Use no other tools. Then stop." | claude -p --allowedTools "Read,Edit" | Out-Null
+Pop-Location
+$b = [IO.File]::ReadAllBytes("$d\case.txt")
+"case.txt was 12 bytes with 4 tabs; asked to turn each tab into two spaces; now $($b.Length) bytes, tabs left: $(@($b | Where-Object { $_ -eq 9 }).Count)"
+if ($b.Length -eq 12) { 'CANNOT CHECK (the Edit did not happen: check that claude -p can use Read and Edit)' } elseif ($b.Length -eq 8) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Do whitespace-only replacements, and writes that must keep trailing spaces, with a script (PowerShell -replace or Python) instead of Edit or Write, then check the byte count or git diff. Say so in CLAUDE.md.
+$t = [IO.File]::ReadAllText('C:/work/case.txt')
+[IO.File]::WriteAllText('C:/work/case.txt', $t.Replace("`t", '  '))
+
+h24
+Claude Code's Grep returns No files found for a */ glob when searching below the working folder
+
+Symptom
+Claude Code searches with Grep, gets No files found, and concludes the file does not exist, although it does. The search path was below the working folder and the glob used */.
+
+Why it happens
+Grep matches the glob against the path relative to the working folder, not relative to the path argument (official issue #104991). With path a\b, sub\SKILL.md is matched as a/b/sub/SKILL.md, so a one-level */SKILL.md does not match. **/ matches at any depth.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+New-Item -ItemType Directory -Force "$d\a\b\sub" | Out-Null
+[IO.File]::WriteAllText("$d\a\b\sub\SKILL.md", "markerterm`n")
+Push-Location $d
+$found = @()
+foreach ($g in '**/SKILL.md', '*/SKILL.md') {
+    $out = "Use the Grep tool exactly once with pattern set to markerterm, path set to exactly $d\a\b , glob set to exactly $g , and output_mode files_with_matches. Use no other tools. Then stop." | claude -p --allowedTools Grep --output-format stream-json --verbose | Out-String
+    $found += ($out -match 'Found 1 file')
+}
+Pop-Location
+"glob **/SKILL.md found the file: $($found[0]); glob */SKILL.md found the file: $($found[1])"
+if (-not $found[0]) { 'CANNOT CHECK (even **/SKILL.md found nothing: check that claude -p can use Grep)' } elseif (-not $found[1]) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Write globs with **/. Say so in CLAUDE.md, and have Claude search again without the glob when it gets No files found.
+# CLAUDE.md
+- Grep globs are matched relative to the working folder. Use **/ instead of */
+- On No files found, search again without the glob
+
+c01
+Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0)
+
+Symptom
+When Codex CLI pipes text with non-ASCII characters into a command such as python, the command receives ? instead. The command exits 0 and Codex does not notice. This happens on Windows without PowerShell 7, where Codex runs commands in Windows PowerShell 5.1.
+
+Why it happens
+Without PowerShell 7, Codex runs commands with powershell.exe (5.1) -Command. PowerShell 5.1 encodes text sent to external commands with $OutputEncoding, which defaults to ASCII, so every non-ASCII character becomes ? (official issue openai/codex #64139). Same mechanism as T04.
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$pyv = & python -c "import sys; print('%d.%d.%d' % sys.version_info[:3])" 2>$null
+if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store stub: install Python from python.org)' } else {
+"python $pyv"
+[IO.File]::WriteAllText("$d\hex.py", 'import sys; print(sys.stdin.buffer.read().strip().hex())')
+$s = 'Zo' + [char]0xE9 + ' ' + [char]0x65E5 + [char]0x672C
+$h = $s | python "$d\hex.py"
+"bytes=$h  (UTF-8 would be 5a6fc3a920e697a5e69cac)"
+if ($h -match '3f') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+}
+
+Fix
+Set $OutputEncoding to UTF-8 before piping. To have Codex do it, write the rule in the project's AGENTS.md (it helps but is not guaranteed).
+$OutputEncoding = [Text.UTF8Encoding]::new($false)
+'Zoé 日本' | python -c "import sys; print(sys.stdin.buffer.read().hex())"
+
+c02
+Codex CLI on PowerShell 5.1 misreads UTF-8 (no BOM) Japanese files (exit code 0)
+
+Symptom
+When Codex CLI reads a UTF-8 file without a BOM that contains Japanese (Markdown, for example), it gets garbled characters such as 繝｡繝｢. The command exits 0 and Codex reports that it copied the text as is.
+
+Why it happens
+Without PowerShell 7, Codex reads files with Get-Content in Windows PowerShell 5.1. On Japanese Windows, 5.1 reads a file without a BOM as cp932 (Shift_JIS), so UTF-8 Japanese is garbled (official issue openai/codex #29085; reported for Turkish, also happens with Japanese).
+
+Check it in 30 seconds
+$d = Join-Path $env:TEMP ('cc-trap-' + (Get-Date -Format 'yyyyMMddHHmmss')); New-Item -ItemType Directory $d -Force | Out-Null
+$s = [string][char]0x65E5 + [char]0x672C + [char]0x8A9E
+[IO.File]::WriteAllText("$d\note.md", $s, [Text.UTF8Encoding]::new($false))
+$a = Get-Content -LiteralPath "$d\note.md"
+$b = Get-Content -LiteralPath "$d\note.md" -Encoding UTF8
+"default read equals the file: $($a -eq $s); with -Encoding UTF8: $($b -eq $s)"
+if ($a -ne $s -and $b -eq $s) { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+
+Fix
+Add -Encoding UTF8 when reading. To have Codex do it, write the rule in the project's AGENTS.md (it helps but is not guaranteed).
+Get-Content -Encoding UTF8 note.md

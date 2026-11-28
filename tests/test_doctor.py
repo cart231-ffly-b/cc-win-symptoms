@@ -51,6 +51,30 @@ def test_doctor_build(doctor_source):
     assert {tr["id"] for tr in generated if tr["slow"]} == {slow_id}
 
 
+def test_gallery_build(doctor_source):
+    gallery = (ROOT / "gallery" / "CCDoctor.ps1").read_text(encoding="ascii")
+    metadata, help_block, body = gallery.split("#>\n\n", 2)
+    assert metadata.startswith("<#PSScriptInfo\n")
+    assert re.search(r"^\.VERSION 1\.0\.0$", metadata, re.M)
+    assert re.search(r"^\.GUID [0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$", metadata, re.M)
+    description = "Checks which of 40 silent Windows failure modes for Claude Code and Codex CLI reproduce on this PC."
+    assert f".DESCRIPTION {description}" in metadata.splitlines()
+    assert help_block == f"<#\n.DESCRIPTION\n{description}\n"
+    assert body == doctor_source
+
+
+def test_llms_build(doctor_source):
+    index = (ROOT / "docs" / "llms.txt").read_text(encoding="utf-8")
+    full = (ROOT / "docs" / "llms-full.txt").read_text(encoding="utf-8")
+    links = re.findall(rf"^\- \[.+\]\({re.escape(BASE)}en/([a-z]\d{{2}})\.html\)$", index, re.M)
+    full_ids = re.findall(r"^[a-z]\d{2}$", full, re.M)
+    expected_ids = [tr["id"] for tr in TRAPS]
+    assert len(links) == 40
+    assert sorted(links) == sorted(expected_ids)
+    assert full_ids == expected_ids
+    assert f"`irm {BASE}doctor.ps1 | iex`" in index
+
+
 @pytest.mark.skipif(os.name != "nt", reason="requires Windows PowerShell 5.1")
 @pytest.mark.parametrize("lang", ["en", "ja"])
 def test_doctor_runs_two_checks(doctor_source, doctor_temp, lang):

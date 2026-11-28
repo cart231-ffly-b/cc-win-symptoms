@@ -1,0 +1,58 @@
+# When Claude Code breaks silently on Windows
+
+> Checks which of 40 silent Windows failure modes for Claude Code and Codex CLI reproduce on this PC.
+
+`irm https://cart231-ffly-b.github.io/cc-win-symptoms/doctor.ps1 | iex`
+
+## Claude Code hooks
+
+- [A Claude Code PreToolUse hook lets the write through when it times out](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h01.html)
+- [A PowerShell hook called with -Command does not block Claude Code](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h02.html)
+- [No Claude Code hook runs at all (disableAllHooks is still set)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h03.html)
+- [A Python deny hook lets Claude Code write into a folder with a non-ASCII (Japanese) name](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h04.html)
+- [A Claude Code hook path written with backslashes never starts, and the write goes through (exit code 127)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h05.html)
+- [Writing through a Windows 8.3 short name makes Claude Code drop the original file name](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h06.html)
+- [Stopping a background Bash task in Claude Code with TaskStop leaves the processes started with & or a pipe running](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h07.html)
+- [After claude -w -p exits, the git worktree stays locked and cannot be removed](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h08.html)
+- [A Claude Code Bash command containing $$( is stopped by the dangerous-removal check](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h09.html)
+- [On Windows, Claude Code's Bash tool turns \\ (two backslashes) into one](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h10.html)
+- [Claude Code's PowerShell tool goes back to the start folder on the next call after cd](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h12.html)
+- [On Windows, a cd into %TEMP% in Claude Code's Bash tool is undone on the next call](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h11.html)
+- [claude -p --json-schema silently stops working with an --agent that restricts tools (still reports success)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h13.html)
+- [A partial Read of a subdirectory CLAUDE.md silently stops the rest of it from loading](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h15.html)
+- [Start Claude Code in a repo subfolder and the hooks in the root .claude/settings.json do not run](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h17.html)
+- [Start Claude Code under a junction and the working folder is silently replaced by the real path (hooks too)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h19.html)
+- [On Windows, Claude Code's Bash tool does not run commands longer than about 7,400 characters (the error says a quote is unmatched)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h14.html)
+- [If a hook's .ps1 file is missing, writes go through even with onFailure: block](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h21.html)
+- [On Windows, Claude Code's Edit and Write silently change the letter case of the file name](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h16.html)
+- [A Git Bash hook that compares $PWD with file_path treats even files inside the project as outside on Windows](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h23.html)
+- [On Windows, Claude Code skips a subfolder's CLAUDE.md when the path's drive letter is lowercase (c:\)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h18.html)
+- [Claude Code's PowerShell tool reports success as failure because of an earlier command's exit code](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h20.html)
+- [Claude Code's Edit and Write silently strip trailing whitespace outside .md files (tabs-to-spaces just deletes the tabs)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h22.html)
+- [Claude Code's Grep returns No files found for a */ glob when searching below the working folder](https://cart231-ffly-b.github.io/cc-win-symptoms/en/h24.html)
+
+## PowerShell, Python, cmd
+
+- [PowerShell returns exit code 1 when the script exited with 2](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t01.html)
+- [The second value passed with -File disappears without an error](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t02.html)
+- [With -File, a,b stays one string instead of an array](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t03.html)
+- [Non-ASCII text piped to claude -p, python or git arrives as ?](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t04.html)
+- [Output from python or claude turns into mojibake in a variable](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t05.html)
+- [Python works when run by hand but crashes under Task Scheduler or redirection](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t06.html)
+- [PYTHONIOENCODING is set, but python -I ignores it](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t07.html)
+- [A .ps1 with non-ASCII text fails to parse or prints mojibake](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t08.html)
+- [A .cmd / .bat file runs its comment text as commands](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t09.html)
+- [$variables in a powershell -Command one-liner vanish before it runs](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t10.html)
+- [Get-ChildItem -Include is ignored and every file comes back](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t11.html)
+- [Markdown backticks inside "..." turn into newlines and tabs](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t12.html)
+- [A log that is being written shows 0 bytes](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t13.html)
+- [claude -p --allowedTools swallows the prompt after it](https://cart231-ffly-b.github.io/cc-win-symptoms/en/t14.html)
+
+## Codex CLI (OpenAI)
+
+- [Codex CLI on PowerShell 5.1: non-ASCII text piped to a command arrives as ? (exit code 0)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/c01.html)
+- [Codex CLI on PowerShell 5.1 misreads UTF-8 (no BOM) Japanese files (exit code 0)](https://cart231-ffly-b.github.io/cc-win-symptoms/en/c02.html)
+
+## Optional
+
+- [All symptoms in plain text](https://cart231-ffly-b.github.io/cc-win-symptoms/llms-full.txt)

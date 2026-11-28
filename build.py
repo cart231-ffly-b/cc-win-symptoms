@@ -14,9 +14,13 @@ from traps import AUTHOR_ENV, TRAPS
 ROOT = pathlib.Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 CHECKS = ROOT / "checks"
+GALLERY = ROOT / "gallery"
 # Assumed GitHub Pages address; change here if the repository lives elsewhere.
 BASE = "https://cart231-ffly-b.github.io/cc-win-symptoms/"
 DOCTOR_COMMAND = f"irm {BASE}doctor.ps1 | iex"
+DOCTOR_VERSION = "1.0.0"
+DOCTOR_GUID = "ee622f86-f1db-44e3-836c-aa9fa81cda6d"
+DOCTOR_DESCRIPTION = "Checks which of 40 silent Windows failure modes for Claude Code and Codex CLI reproduce on this PC."
 INDEXNOW_KEY = "5e01d4778f176e4b4d7c7fbda4d1fbcd"
 TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 
@@ -309,6 +313,55 @@ def write_doctor():
               .replace("__MESSAGES__", json.dumps(messages, indent=4))
               .replace("__TRAPS__", f"[\n{rows}\n]"))
     (DOCS / "doctor.ps1").write_text(script, encoding="ascii")
+    header = f"""<#PSScriptInfo
+
+.VERSION {DOCTOR_VERSION}
+.GUID {DOCTOR_GUID}
+.AUTHOR Aoto Kamijo
+.DESCRIPTION {DOCTOR_DESCRIPTION}
+.TAGS Windows ClaudeCode Codex PowerShell Encoding Diagnostics
+.LICENSEURI https://github.com/cart231-ffly-b/cc-win-symptoms/blob/main/LICENSE
+.PROJECTURI {BASE}
+.RELEASENOTES
+Initial release.
+
+#>
+
+<#
+.DESCRIPTION
+{DOCTOR_DESCRIPTION}
+#>
+
+"""
+    GALLERY.mkdir(exist_ok=True)
+    (GALLERY / "CCDoctor.ps1").write_text(header + script, encoding="ascii")
+
+
+def write_llms():
+    t = T["en"]
+    index_lines = [
+        f"# {t['site']}", "", f"> {DOCTOR_DESCRIPTION}", "",
+        f"`{DOCTOR_COMMAND}`",
+    ]
+    for heading, prefix in (("hooks", "h"), ("ps", "t"), ("codex", "c")):
+        index_lines.extend(["", f"## {t[heading]}", ""])
+        for tr in TRAPS:
+            if tr["id"].startswith(prefix):
+                index_lines.append(f"- [{tr['en']['title']}]({BASE}en/{tr['id']}.html)")
+    index_lines.extend(["", "## Optional", "", f"- [All symptoms in plain text]({BASE}llms-full.txt)"])
+    (DOCS / "llms.txt").write_text("\n".join(index_lines) + "\n", encoding="utf-8")
+
+    entries = []
+    for tr in TRAPS:
+        d = tr["en"]
+        entries.append(
+            f"{tr['id']}\n{d['title']}\n\n"
+            f"{t['symptom']}\n{d['symptom']}\n\n"
+            f"{t['why']}\n{d['why']}\n\n"
+            f"{t['check']}\n{tr['check']}\n\n"
+            f"{t['fix']}\n{d['fix']}\n{d['fixcode']}"
+        )
+    (DOCS / "llms-full.txt").write_text("\n\n".join(entries) + "\n", encoding="utf-8")
 
 
 def main():
@@ -351,6 +404,7 @@ def main():
         # CRLF so the file is also fine for anyone opening it in Notepad
         (CHECKS / f"{tr['id']}.ps1").write_bytes(src.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii") + b"\r\n")
     write_doctor()
+    write_llms()
     (DOCS / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"<url><loc>{u}</loc></url>\n" for u in urls) + "</urlset>\n", encoding="utf-8")
