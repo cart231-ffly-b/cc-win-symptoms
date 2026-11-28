@@ -33,7 +33,7 @@ if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Sto
 $s = [string][char]0x65E5 + [char]0x672C
 $h = $s | python &quot;$d\hex.py&quot;
 &quot;bytes=$h  (UTF-8 would be e697a5e69cac)&quot;
-if ($h -match &#x27;^(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+if ($h -match &#x27;^(efbbbf)?(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
 }</code></pre>
 <h2>Why it happens</h2>
 <p>Windows PowerShell 5.1 encodes text piped into native programs with $OutputEncoding, which defaults to ASCII. Anything outside ASCII becomes ?. It is a different setting from [Console]::OutputEncoding, which only affects reading output.</p>

@@ -6,5 +6,5 @@ if (-not $pyv) { 'CANNOT CHECK (python not found, or only the Microsoft Store st
 $s = [string][char]0x65E5 + [char]0x672C
 $h = $s | python "$d\hex.py"
 "bytes=$h  (UTF-8 would be e697a5e69cac)"
-if ($h -match '^(3f)+$') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
+if ($h -match '^(efbbbf)?(3f)+$') { 'REPRODUCED' } else { 'NOT REPRODUCED' }
 }

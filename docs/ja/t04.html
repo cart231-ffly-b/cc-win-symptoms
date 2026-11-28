@@ -33,7 +33,7 @@ if (-not $pyv) { &#x27;CANNOT CHECK (python not found, or only the Microsoft Sto
 $s = [string][char]0x65E5 + [char]0x672C
 $h = $s | python &quot;$d\hex.py&quot;
 &quot;bytes=$h  (UTF-8 would be e697a5e69cac)&quot;
-if ($h -match &#x27;^(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
+if ($h -match &#x27;^(efbbbf)?(3f)+$&#x27;) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }
 }</code></pre>
 <h2>なぜ起きるか</h2>
 <p>Windows PowerShell 5.1 は、ネイティブのプログラムへパイプで渡す文字を $OutputEncoding で符号化する。既定は ASCII なので、日本語は ? になる。受け取る側の [Console]::OutputEncoding とは別の設定。</p>

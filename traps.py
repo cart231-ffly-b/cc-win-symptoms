@@ -101,7 +101,7 @@ if ($o -eq 'count=1 first=a,b') """ + YES,
 $s = [string][char]0x65E5 + [char]0x672C
 $h = $s | python "$d\hex.py"
 "bytes=$h  (UTF-8 would be e697a5e69cac)"
-if ($h -match '^(3f)+$') """ + YES,
+if ($h -match '^(efbbbf)?(3f)+$') """ + YES,
         "ja": {
             "title": "パイプで渡した日本語が ? になる（claude -p・python・git）",
             "search": ["PowerShell パイプ 日本語 ?になる", "claude -p 日本語 文字化け", "python stdin 日本語 ??", "$OutputEncoding"],
