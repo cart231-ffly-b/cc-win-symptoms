@@ -15,7 +15,7 @@
 <meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h09.html">
 <meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる", "description": "削除をしていないのに、Bash ツールの呼び出しが「危ない削除かもしれない」という確認で止まり、コマンドが動かない。確認コードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h09.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h09.html"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる", "description": "削除をしていないのに、Bash ツールの呼び出しが「危ない削除かもしれない」という確認で止まり、コマンドが動かない。確認コードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h09.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}, "mentions": {"@type": "Book", "url": "https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "Claude Code の Bash ツールで、$$( を含むコマンドが「削除の安全確認」で止まる", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h09.html"}]}]}</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -41,13 +41,13 @@ if (-not $y) { &#x27;CANNOT CHECK (even the one-dollar command did not run: chec
 <h2>なぜ起きるか</h2>
 <p>Claude Code は、Bash のコマンドを実行する前に、消しすぎる削除が無いかを調べる。$$( が入ると、シェルがどう読むかを Claude Code が確かめきれず、削除かもしれないとして止める（公式 issue #108970）。$( が1つだけなら通る。</p>
 <h2>直し方</h2>
-<p>$$( を含む本文は、コマンドに直接書かず、Write ツールでファイルに保存してから使う。どうしてもコマンドに書くなら、&quot;a\$\$(b&quot; のようにドル記号の前にバックスラッシュを置く。Claude Code 自身にこう書かせる CLAUDE.md の型は、本の9章（<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">CLAUDE.md の型を読む（Zenn・全章 1,200円／0〜4章は無料）</a> ）にある。</p>
+<p>$$( を含む本文は、コマンドに直接書かず、Write ツールでファイルに保存してから使う。どうしてもコマンドに書くなら、&quot;a\$\$(b&quot; のようにドル記号の前にバックスラッシュを置く。</p>
 <pre><code># Write ツールでファイルに保存してから使う
 # どうしてもコマンドに書くなら
 echo &quot;a\$\$(b&quot;</code></pre>
 <div class="next-steps">
 <p>この PC でほかの症状も起きるか調べる。<a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
-<p>再発を防ぐ設計と実装を読む。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
+<p>安全装置、無人実行、CLAUDE.md の型の実装と設計を本にまとめています。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
 </div>
 <h2>作者の PC での結果</h2>
 <p class="result">echo &#x27;a$(b&#x27; &gt; y.txt は通り、echo &#x27;a$$(b&#x27; &gt; x.txt は削除の確認で止まって x.txt ができなかった（2026-11-24、Claude Code 2.1.330）</p>
@@ -56,13 +56,12 @@ echo &quot;a\$\$(b&quot;</code></pre>
 <ul class="tags"><li>Claude Code can&#x27;t rule out a dangerous removal</li><li>Claude Code Bash 止まる rm</li><li>Claude Code $$( 拒否</li><li>Claude Code heredoc 拒否</li><li>bypassPermissions でも止まる</li></ul>
 <h2>関連</h2>
 <ul><li><a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></li><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">PowerShell・Python・cmd の再現スクリプト cc-win-traps（無料、MIT）</a></li></ul>
-<div class="kit"><p>安全装置、無人実行、CLAUDE.md の型の実装と設計は、Zenn の本にまとめています（全章 1,200円。0〜4章は無料）。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p></div>
 <h2>ほかの症状</h2>
 <ul><li><a href="h08.html">claude -w -p が終わったあとも、git の worktree のロックが残って消せない</a></li><li><a href="h10.html">Windows の Claude Code の Bash ツールで、\\（バックスラッシュ2つ）が \ 1つになる</a></li><li><a href="h07.html">Claude Code で裏の Bash を TaskStop で止めても、&amp; やパイプで動かしたプロセスが残る</a></li><li><a href="h11.html">Windows の Claude Code の Bash ツールで、%TEMP% の下への cd が次の呼び出しで取り消される</a></li></ul>
 <p><a href="index.html">一覧へ</a></p>
 </main>
 <footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
-<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
 <p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
 <script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
 function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>

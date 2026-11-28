@@ -15,7 +15,7 @@
 <meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/t10.html">
 <meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "powershell -Command の1行に書いた $変数 が、呼ぶ前に消える", "description": "powershell -Command \"foreach ($i in 1..2) { $i }\" が構文エラーになる。30秒で確かめるコードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/t10.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "powershell -Command の1行に書いた $変数 が、呼ぶ前に消える", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/t10.html"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "powershell -Command の1行に書いた $変数 が、呼ぶ前に消える", "description": "powershell -Command \"foreach ($i in 1..2) { $i }\" が構文エラーになる。30秒で確かめるコードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/t10.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}, "mentions": {"@type": "Book", "url": "https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "powershell -Command の1行に書いた $変数 が、呼ぶ前に消える", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/t10.html"}]}]}</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -40,9 +40,8 @@ if ($e -ne 0) { &#x27;REPRODUCED&#x27; } else { &#x27;NOT REPRODUCED&#x27; }</co
 powershell -NoProfile -Command &#x27;foreach ($i in 1..2) { $i }&#x27;</code></pre>
 <div class="next-steps">
 <p>この PC でほかの症状も起きるか調べる。<a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
-<p>再発を防ぐ設計と実装を読む。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
+<p>安全装置、無人実行、CLAUDE.md の型の実装と設計を本にまとめています。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
 </div>
-<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps/viewer/03-exitcode-args">本の3章で終了コードと引数の対策を読む（Zenn・無料）</a></p>
 <h2>作者の PC での結果</h2>
 <p class="result">構文エラー、終了コード 1</p>
 <p class="note">作者の PC: Windows 11 / Windows PowerShell 5.1.26100 / Python 3.13.7 / Claude Code 2.1.304、日本語の Windows（コードページ 932）。2026-10-20〜22 に確認。</p>
@@ -50,13 +49,12 @@ powershell -NoProfile -Command &#x27;foreach ($i in 1..2) { $i }&#x27;</code></p
 <ul class="tags"><li>powershell -Command 変数 消える</li><li>powershell ワンライナー foreach エラー</li><li>-Command 二重引用符 $</li></ul>
 <h2>関連</h2>
 <ul><li><a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></li><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">PowerShell・Python・cmd の再現スクリプト cc-win-traps（無料、MIT）</a></li></ul>
-<div class="kit"><p>安全装置、無人実行、CLAUDE.md の型の実装と設計は、Zenn の本にまとめています（全章 1,200円。0〜4章は無料）。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p></div>
 <h2>ほかの症状</h2>
 <ul><li><a href="t09.html">.cmd / .bat のコメントが、コマンドとして実行される</a></li><li><a href="t11.html">Get-ChildItem の -Include が効かず、全部のファイルが返る</a></li><li><a href="t08.html">PowerShell 5.1 で日本語入りの .ps1（BOM なし UTF-8）が、構文エラーになるか文字化けして動く</a></li><li><a href="t12.html">PowerShell の &quot;...&quot; に書いた Markdown のバッククォートで、文字が消えて改行が入る</a></li></ul>
 <p><a href="index.html">一覧へ</a></p>
 </main>
 <footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
-<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
 <p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
 <script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
 function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>

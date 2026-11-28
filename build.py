@@ -10,7 +10,15 @@ import pathlib
 import re
 import shutil
 
-from traps import AUTHOR_ENV, BOOK_BY_TRAP, TRAPS
+from traps import AUTHOR_ENV, TRAPS
+
+# Change this block when the Japanese book moves to Kindle.
+BOOK = {
+    "url": "https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps",
+    "label": "0〜4章を無料で読む（Zenn、全章 1,200円）",
+    "label_en": "Windows × Claude Code book (Zenn, in Japanese)",
+    "note": "安全装置、無人実行、CLAUDE.md の型の実装と設計を本にまとめています。",
+}
 
 ROOT = pathlib.Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
@@ -25,20 +33,7 @@ DOCTOR_DESCRIPTION = "Checks which of 40 silent Windows failure modes for Claude
 INDEXNOW_KEY = "5e01d4778f176e4b4d7c7fbda4d1fbcd"
 TRAPS_REPO = "https://github.com/cart231-ffly-b/claude-code-windows-traps"
 ZENN_AUTHOR = "https://zenn.dev/kamijo_aoto"
-BOOK_URL = f"{ZENN_AUTHOR}/books/windows-claude-code-traps"
-BOOK_OFFER = "Zenn・全章 1,200円／0〜4章は無料"
-BOOK = ("0〜4章を無料で読む（Zenn、全章 1,200円）", BOOK_URL)
 SLIDE_KATA = "https://cart231-ffly-b.github.io/slide-kata/"
-BOOK_CHAPTERS = {
-    2: ("02-encoding", "文字コードの対策"),
-    3: ("03-exitcode-args", "終了コードと引数の対策"),
-    4: ("04-files-tools", "ファイルと道具の対策"),
-    5: ("05-guard", "安全装置の設計と実装"),
-    6: ("06-runner", "夜の無人実行の仕組み"),
-    8: ("08-safeinvoke", "PowerShell 5.1 から安全に呼ぶ関数"),
-    9: ("09-claude-md", "CLAUDE.md の型"),
-    12: ("12-november-claude-code", "Claude Code の追補"),
-}
 ZENN_ARTICLES = {
     "h04": ("日本語フォルダと拒否フックの検証記事（Zenn）", f"{ZENN_AUTHOR}/articles/claude-code-hook-japanese-path"),
     "h05": ("Windows のパスとフックの検証記事（Zenn）", f"{ZENN_AUTHOR}/articles/claude-code-hook-windows-path-127"),
@@ -101,7 +96,7 @@ NOT_YET = "9999-12-31"  # note は 2026-11-01 時点で下書きのまま（URL 
 JA_NOTE = {
     "free_t": (NOT_YET, ("エラーなしで壊れる14か所（無料の記事）", "https://note.com/sodateru_ai/n/na7d9ee2a36fa"), JA_REPO),
     "free_h": (NOT_YET, ("安全フックは、遅れると黙って素通りする（無料の記事）", "https://note.com/sodateru_ai/n/n17e499f58486"), JA_REPO),
-    "kit": (NOT_YET, ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"), BOOK),
+    "kit": (NOT_YET, ("cc-win-kit（note、2,980円）", "https://note.com/sodateru_ai/n/ndad0eb6feaa6"), None),
 }
 # BUILD_DATE=2026-11-05 python build.py  shows what the site looks like on that day
 TODAY = os.environ.get("BUILD_DATE") or datetime.date.today().isoformat()
@@ -133,7 +128,6 @@ T = {
         "more": "ほかの症状",
         "related": "関連",
         "kit": "この穴を最初から踏まないようにした部品（書き込み先を絞る安全装置〈onFailure: block 付き〉、夜の無人実行、ファイルとフックの設定を調べる健康診断、CLAUDE.md の型、試験一式）は cc-win-kit にまとめています。",
-        "book_intro": "安全装置、無人実行、CLAUDE.md の型の実装と設計は、Zenn の本にまとめています（全章 1,200円。0〜4章は無料）。",
         "copy": "コピー",
         "copied": "コピーしました",
         "other": "English",
@@ -264,25 +258,17 @@ def anchor(label, url):
     return f'<a href="{e(url)}">{e(label)}</a>'
 
 
-def chapter_link(number):
-    slug, subject = BOOK_CHAPTERS[number]
-    if number <= 4:
-        return (f"本の{number}章で{subject}を読む（Zenn・無料）", f"{BOOK_URL}/viewer/{slug}")
-    return (f"本の{number}章で{subject}を読む（{BOOK_OFFER}）", BOOK_URL)
+def book_link():
+    return anchor(BOOK["label"], BOOK["url"])
 
 
 def linkify(text):
     parts = []
     start = 0
-    chapter = re.search(r"本の([0-9]+)章", text)
     for match in URL.finditer(text):
         url = match.group().rstrip(".,;:!?)]}")
         parts.append(e(text[start:match.start()]))
-        if url == BOOK_URL and chapter:
-            label, target = chapter_link(int(chapter[1]))
-            parts.append(anchor(label.removeprefix(f"本の{chapter[1]}章で"), target))
-        else:
-            parts.append(anchor(url, url))
+        parts.append(anchor(url, url))
         start = match.start() + len(url)
     parts.append(e(text[start:]))
     return "".join(parts)
@@ -296,18 +282,24 @@ def card(title, desc, url, og_type):
 
 
 def collection_data(lang, title, path):
+    collection = {"@type": "CollectionPage", "name": title, "url": BASE + path, "inLanguage": lang,
+                  "isPartOf": {"@id": BASE + "#website"}}
+    if lang == "ja":
+        collection["mentions"] = {"@type": "Book", "url": BOOK["url"]}
     return [
         {"@type": "WebSite", "@id": BASE + "#website", "url": BASE, "name": T["en"]["site"]},
-        {"@type": "CollectionPage", "name": title, "url": BASE + path, "inLanguage": lang,
-         "isPartOf": {"@id": BASE + "#website"}},
+        collection,
     ]
 
 
 def article_data(lang, title, desc, path):
+    article = {"@type": "TechArticle", "headline": title, "description": desc, "url": BASE + path,
+               "inLanguage": lang, "image": BASE + "og.png",
+               "author": {"@type": "Person", "name": "Kamijo Aoto", "url": ZENN_AUTHOR}}
+    if lang == "ja":
+        article["mentions"] = {"@type": "Book", "url": BOOK["url"]}
     return [
-        {"@type": "TechArticle", "headline": title, "description": desc, "url": BASE + path,
-         "inLanguage": lang, "image": BASE + "og.png",
-         "author": {"@type": "Person", "name": "Kamijo Aoto", "url": ZENN_AUTHOR}},
+        article,
         {"@type": "BreadcrumbList", "itemListElement": [
             {"@type": "ListItem", "position": 1, "name": T[lang]["index"], "item": f"{BASE}{lang}/index.html"},
             {"@type": "ListItem", "position": 2, "name": title, "item": BASE + path},
@@ -357,9 +349,10 @@ def related_traps(trap_id):
 
 
 def kit_box(lang):
-    t = T[lang]
-    intro = t["book_intro"] if lang == "ja" and TODAY < JA_NOTE["kit"][0] else t["kit"]
-    return f'<div class="kit"><p>{e(intro)}</p><p>{anchor(*LINKS[lang]["kit"])}</p></div>\n'
+    link = LINKS[lang]["kit"]
+    if link is None:
+        return ""
+    return f'<div class="kit"><p>{e(T[lang]["kit"])}</p><p>{anchor(*link)}</p></div>\n'
 
 
 def doctor_link(lang):
@@ -371,7 +364,7 @@ def fix_steps(lang):
     if lang == "ja":
         return ('<div class="next-steps">\n'
                 f'<p>この PC でほかの症状も起きるか調べる。{doctor_link(lang)}</p>\n'
-                f'<p>再発を防ぐ設計と実装を読む。{anchor(*BOOK)}</p>\n</div>\n')
+                f'<p>{e(BOOK["note"])}{book_link()}</p>\n</div>\n')
     return ('<div class="next-steps">\n'
             f'<p>Check which other symptoms occur on this PC. {doctor_link(lang)}</p>\n'
             f'<p>Get the tools to prevent these traps. {anchor(*LINKS[lang]["kit"])}</p>\n</div>\n')
@@ -401,8 +394,6 @@ def page(tr, lang):
     fix_title = f'{t["fix"]}（onFailure: block）' if tr["id"] == "h01" and lang == "ja" else t["fix"]
     out.append(f'<h2>{e(fix_title)}</h2>\n<p>{linkify(d["fix"])}</p>\n<pre><code>{e(d["fixcode"])}</code></pre>\n')
     out.append(fix_steps(lang))
-    if lang == "ja" and tr["id"] in BOOK_BY_TRAP:
-        out.append(f'<p>{anchor(*chapter_link(BOOK_BY_TRAP[tr["id"]]))}</p>\n')
     out.append(f'<h2>{e(t["result"])}</h2>\n<p class="result">{e(d["result"])}</p>\n<p class="note">{e(AUTHOR_ENV[lang])}</p>\n')
     out.append(f'<h2>{e(t["search"])}</h2>\n<ul class="tags">' + "".join(f"<li>{e(s)}</li>" for s in d["search"]) + "</ul>\n")
     links = LINKS[lang]
@@ -416,17 +407,19 @@ def page(tr, lang):
     out.append(f'<h2>{e(t["more"])}</h2>\n<ul>' + "".join(
         f'<li>{trap_link(o, lang)}</li>' for o in related_traps(tr["id"])) + "</ul>\n"
         + f'<p>{anchor(t["index"], "index.html")}</p>\n')
-    out.append(foot(lang))
+    out.append(foot(lang, show_book=False))
     return "".join(out)
 
 
-def foot(lang, prefix="../"):
+def foot(lang, prefix="../", *, show_book=True):
     t = T[lang]
     js = JS.replace("COPIED", repr(t["copied"])).replace("COPY", repr(t["copy"]))
     if lang == "ja":
         author = "作者 " + anchor("上条碧斗（Kamijo Aoto）", ZENN_AUTHOR)
-        links = [("Zenn の本（1,200円・0〜4章無料）", BOOK_URL), ("GitHub（cc-win-traps）", TRAPS_REPO),
+        links = [("GitHub（cc-win-traps）", TRAPS_REPO),
                  ("週次結果", f"{prefix}scoreboard/ja.html"), ("作者の別サイト「スライドの型の棚」", SLIDE_KATA)]
+        if show_book:
+            links.insert(0, (BOOK["label"], BOOK["url"]))
     else:
         author = "By " + anchor("Kamijo Aoto", ZENN_AUTHOR)
         links = [("GitHub (cc-win-traps)", TRAPS_REPO), LINKS["en"]["kit"],
@@ -451,7 +444,7 @@ def index(lang):
                f'<p>{e(t["doctor_skips"])}</p>\n'
                f'<p><a href="../scoreboard/{scoreboard_page}">{e(t["scoreboard"])}</a></p>\n')
     if lang == "ja":
-        out.append(f'<p>{anchor(*BOOK)}</p>\n')
+        out.append(f'<p>{e(BOOK["note"])}{book_link()}</p>\n')
         out.append('<ul>' + "".join(f'<li>{anchor(title, filename)}</li>' for filename, (title, _) in GUIDES.items())
                    + '</ul>\n')
     for head_key in CATEGORIES:
@@ -497,7 +490,7 @@ def hooks_guide():
         tr = TRAPS_BY_ID[trap_id]
         steps = "".join(list(sentence_parts(tr["ja"]["fix"]))[:count])
         out.append(f'<li>{e(steps)}（{anchor(trap_id.upper(), f"{trap_id}.html")}）</li>\n')
-    out.append(f'</ol>\n<p>{anchor(*chapter_link(5))} · {doctor_link("ja")}</p>\n')
+    out.append(f'</ol>\n<p>{book_link()} · {doctor_link("ja")}</p>\n')
     return "".join(out)
 
 
@@ -523,7 +516,7 @@ def encoding_guide():
             + guide_table(("見た目", "症状ページ", "原因と直し方"), rows)
             + '<h2>文字コードの設定とファイル形式</h2>\n'
             + guide_table(("設定・形式", "役割と使い方"), roles)
-            + f'<p>{anchor(*BOOK)} · {anchor(*JA_REPO)}</p>\n')
+            + f'<p>{book_link()} · {anchor(*JA_REPO)}</p>\n')
 
 
 def guide(filename, content):
@@ -614,7 +607,7 @@ def write_llms():
     index_lines.extend([
         "", "## Resources / Books & Tools", "",
         f"- [Japanese index]({BASE}ja/index.html)",
-        f"- [Windows × Claude Code book (Zenn, in Japanese)]({BOOK_URL})",
+        f"- [{BOOK['label_en']}]({BOOK['url']})",
         f"- [cc-win-traps (GitHub)]({TRAPS_REPO})",
         f"- [{LINKS['en']['kit'][0]}]({LINKS['en']['kit'][1]})",
         f"- [Weekly results]({BASE}scoreboard/index.html)",

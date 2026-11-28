@@ -15,7 +15,7 @@
 <meta property="og:url" content="https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h18.html">
 <meta property="og:image" content="https://cart231-ffly-b.github.io/cc-win-symptoms/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "Windows の Claude Code は、パスのドライブ文字が小文字（c:\\）だと、下のフォルダの CLAUDE.md を読まない", "description": "下のフォルダに置いた CLAUDE.md の決まりを、Claude Code がときどき守らない。確認コードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h18.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "Windows の Claude Code は、パスのドライブ文字が小文字（c:\\）だと、下のフォルダの CLAUDE.md を読まない", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h18.html"}]}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "TechArticle", "headline": "Windows の Claude Code は、パスのドライブ文字が小文字（c:\\）だと、下のフォルダの CLAUDE.md を読まない", "description": "下のフォルダに置いた CLAUDE.md の決まりを、Claude Code がときどき守らない。確認コードと直し方を掲載。", "url": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h18.html", "inLanguage": "ja", "image": "https://cart231-ffly-b.github.io/cc-win-symptoms/og.png", "author": {"@type": "Person", "name": "Kamijo Aoto", "url": "https://zenn.dev/kamijo_aoto"}, "mentions": {"@type": "Book", "url": "https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps"}}, {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "一覧へ", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/index.html"}, {"@type": "ListItem", "position": 2, "name": "Windows の Claude Code は、パスのドライブ文字が小文字（c:\\）だと、下のフォルダの CLAUDE.md を読まない", "item": "https://cart231-ffly-b.github.io/cc-win-symptoms/ja/h18.html"}]}]}</script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
@@ -44,12 +44,12 @@ if ($d.Substring(0, 2) -ne &#x27;C:&#x27;) { &#x27;CANNOT CHECK (TEMP is not on 
 <h2>なぜ起きるか</h2>
 <p>Claude Code は、下のフォルダのファイルを Read したときにそのフォルダの CLAUDE.md を読み込むが、Windows ではドライブ文字の大小が起動したフォルダと違うと読み込まない（公式 issue #98835。報告は VS Code で c:\ として開いたワークスペースで C:\ が読まれなかった、作者は C: で起動して c:\ が読まれなかった）。</p>
 <h2>直し方</h2>
-<p>必ず守らせたい決まりは、起動するフォルダの CLAUDE.md に書く（起動したフォルダのものは最初に読まれる）。CLAUDE.md に「パスはドライブ文字を大文字で C:/ と書く」と書く。CLAUDE.md の型は本の9章（<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">CLAUDE.md の型を読む（Zenn・全章 1,200円／0〜4章は無料）</a> ）にある。</p>
+<p>必ず守らせたい決まりは、起動するフォルダの CLAUDE.md に書く（起動したフォルダのものは最初に読まれる）。CLAUDE.md に「パスはドライブ文字を大文字で C:/ と書く」と書く。</p>
 <pre><code># CLAUDE.md
 - Windows のパスは、ドライブ文字を大文字で C:/ と書き、/ 区切りにする</code></pre>
 <div class="next-steps">
 <p>この PC でほかの症状も起きるか調べる。<a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></p>
-<p>再発を防ぐ設計と実装を読む。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
+<p>安全装置、無人実行、CLAUDE.md の型の実装と設計を本にまとめています。<a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p>
 </div>
 <h2>作者の PC での結果</h2>
 <p class="result">C: で起動した claude -p で、Read の file_path が C:\ と C:/ なら sub\CLAUDE.md が効き、c:\ と c:/ では効かなかった（2026-11-25、Claude Code 2.1.330、Windows 11）</p>
@@ -58,13 +58,12 @@ if ($d.Substring(0, 2) -ne &#x27;C:&#x27;) { &#x27;CANNOT CHECK (TEMP is not on 
 <ul class="tags"><li>Claude Code CLAUDE.md 読まれない サブフォルダ</li><li>Claude Code nested CLAUDE.md not loaded windows</li><li>Claude Code ドライブ文字 小文字</li><li>c:\ C:\ Claude Code CLAUDE.md</li><li>Claude Code フォルダごとの CLAUDE.md 効かない</li></ul>
 <h2>関連</h2>
 <ul><li><a href="index.html#doctor">doctor.ps1 の診断コマンドを表示</a></li><li><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">PowerShell・Python・cmd の再現スクリプト cc-win-traps（無料、MIT）</a></li></ul>
-<div class="kit"><p>安全装置、無人実行、CLAUDE.md の型の実装と設計は、Zenn の本にまとめています（全章 1,200円。0〜4章は無料）。</p><p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">0〜4章を無料で読む（Zenn、全章 1,200円）</a></p></div>
 <h2>ほかの症状</h2>
 <ul><li><a href="h16.html">Windows の Claude Code で Edit・Write すると、ファイル名の大文字小文字が黙って変わる</a></li><li><a href="h20.html">Claude Code の PowerShell ツールは、途中のコマンドの終了コードで、成功を「失敗」と返す</a></li><li><a href="h15.html">サブフォルダの CLAUDE.md を一部だけ Read すると、残りが黙って読み込まれなくなる</a></li><li><a href="h14.html">Windows の Claude Code の Bash ツールは、7,400 文字ほどを超えるコマンドを動かさない（エラーは「引用符が閉じていない」）</a></li></ul>
 <p><a href="index.html">一覧へ</a></p>
 </main>
 <footer><p>作者 <a href="https://zenn.dev/kamijo_aoto">上条碧斗（Kamijo Aoto）</a></p>
-<p><a href="https://zenn.dev/kamijo_aoto/books/windows-claude-code-traps">Zenn の本（1,200円・0〜4章無料）</a> · <a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
+<p><a href="https://github.com/cart231-ffly-b/claude-code-windows-traps">GitHub（cc-win-traps）</a> · <a href="../scoreboard/ja.html">週次結果</a> · <a href="https://cart231-ffly-b.github.io/slide-kata/">作者の別サイト「スライドの型の棚」</a></p>
 <p>内容は作者の PC で確かめた範囲です。文章の下書きと確かめる実行は、AI（Claude Code）の手を借りています。</p></footer>
 <script>document.querySelectorAll('pre').forEach(function(p){var b=document.createElement('button');b.type='button';b.textContent='コピー';b.addEventListener('click',function(){var t=p.querySelector('code').innerText;function done(){b.textContent='コピーしました';setTimeout(function(){b.textContent='コピー'},1500)}if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){sel(p)})}else{sel(p)}});p.appendChild(b)});
 function sel(p){var r=document.createRange();r.selectNodeContents(p.querySelector('code'));var s=getSelection();s.removeAllRanges();s.addRange(r)}</script>

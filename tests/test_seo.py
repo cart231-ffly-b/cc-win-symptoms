@@ -13,20 +13,47 @@ import build
 
 
 def test_urls_in_fix_are_links():
-    for trap in build.TRAPS:
-        fix = trap["ja"]["fix"]
-        if build.BOOK_URL not in fix:
-            continue
-        rendered = build.page(trap, "ja")
-        paragraph = re.search(r"<h2>直し方</h2>\s*<p>(.*?)</p>", rendered)[1]
-        href, label = re.search(r'<a href="([^"]+)">([^<]+)</a>', paragraph).groups()
-        assert href.startswith(build.BOOK_URL)
-        assert not label.startswith("https://")
-
     assert build.linkify('See (https://example.com/?a=1&b=2). <tag>') == (
         'See (<a href="https://example.com/?a=1&amp;b=2">'
         'https://example.com/?a=1&amp;b=2</a>). &lt;tag&gt;'
     )
+
+
+def test_book_links_across_generated_site(tmp_path, monkeypatch):
+    docs = tmp_path / "docs"
+    monkeypatch.setattr(build, "DOCS", docs)
+    monkeypatch.setattr(build, "CHECKS", tmp_path / "checks")
+    monkeypatch.setattr(build, "GALLERY", tmp_path / "gallery")
+    build.main()
+
+    original = {path.relative_to(docs): path.read_bytes() for path in docs.rglob("*") if path.is_file()}
+    old_url = build.BOOK["url"]
+    old_url_bytes = old_url.encode()
+    for path, content in original.items():
+        assert b"books/windows-claude-code-traps/viewer/" not in content, path
+        urls = re.findall(rb'https?://[^\s<>"\')]+', content)
+        assert all(url == old_url_bytes for url in urls
+                   if url.startswith(old_url_bytes) or b"/books/windows-claude-code-traps" in url), path
+
+    href = f'href="{build.e(old_url)}"'
+    link = f'<a {href}>{build.e(build.BOOK["label"])}</a>'
+    symptom_pages = {f"{tr['id']}.html" for tr in build.TRAPS}
+    for name in symptom_pages | set(build.GUIDES) | {"index.html"}:
+        page = (docs / "ja" / name).read_text(encoding="utf-8")
+        graph = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', page)[1])["@graph"]
+        assert {"@type": "Book", "url": old_url} in [node.get("mentions") for node in graph], name
+        if name in symptom_pages:
+            assert page.count(href) == 1, name
+            assert link in re.search(r'<div class="next-steps">(.*?)</div>', page, re.S)[1], name
+        else:
+            assert link in page.split("<footer>", 1)[1], name
+    assert f"- [{build.BOOK['label_en']}]({old_url})" in (docs / "llms.txt").read_text(encoding="utf-8")
+
+    new_url = "https://example.com/kindle-book"
+    monkeypatch.setitem(build.BOOK, "url", new_url)
+    build.main()
+    switched = {path.relative_to(docs): path.read_bytes() for path in docs.rglob("*") if path.is_file()}
+    assert switched == {path: content.replace(old_url_bytes, new_url.encode()) for path, content in original.items()}
 
 
 def test_description_uses_sentence_or_word_boundaries():
